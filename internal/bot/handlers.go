@@ -159,6 +159,8 @@ func (h *Handler) handleMessage(u *schemes.MessageCreatedUpdate) {
 		h.handleUpdateAll(chatID, userID)
 	case "/change_group", "/сменить":
 		h.handleChangeGroup(chatID, userID)
+	case "/корректировка", "/changes":
+		h.handleUserChanges(chatID, userID)
 	case "/myid", "/мойид":
 		h.handleMyID(chatID, userID)
 	case "/togglemyid", "/myidtoggle":
@@ -1164,6 +1166,122 @@ func (h *Handler) handleListAdmins(chatID int64, userID int64) {
 		}
 	}
 	h.reply(chatID, reply)
+}
+
+// ======== /корректировка — изменения для своей группы ========
+
+func (h *Handler) handleUserChanges(chatID int64, userID int64) {
+	user, exists := h.storage.GetUser(userID)
+	if !exists {
+		h.handleStart(chatID, userID)
+		return
+	}
+
+	data, err := os.ReadFile("changes.json")
+	if err != nil {
+		h.reply(chatID, "⚠️ Файл изменений не найден")
+		return
+	}
+
+	var allChanges []ChangeEntry
+	if err := json.Unmarshal(data, &allChanges); err != nil {
+		h.reply(chatID, "⚠️ Ошибка чтения изменений")
+		return
+	}
+
+	if len(allChanges) == 0 {
+		h.reply(chatID, "📭 Изменений пока нет")
+		return
+	}
+
+	// Фильтруем только свою группу
+	userGroup := normalizeGroupName(user.GroupName)
+	var myChanges []ChangeEntry
+	for _, ch := range allChanges {
+		if normalizeGroupName(ch.Group) == userGroup {
+			myChanges = append(myChanges, ch)
+		}
+	}
+
+	if len(myChanges) == 0 {
+		h.reply(chatID, "📭 Для твоей группы изменений нет")
+		return
+	}
+
+	// Группируем по датам
+	type dayInfo struct {
+		date    string
+		dayName string
+		entries []ChangeEntry
+	}
+	dayMap := make(map[string]*dayInfo)
+	var dayKeys []string
+	for _, ch := range myChanges {
+		if dayMap[ch.Date] == nil {
+			dayMap[ch.Date] = &dayInfo{date: ch.Date, dayName: ch.DayOfWeek}
+			dayKeys = append(dayKeys, ch.Date)
+		}
+		dayMap[ch.Date].entries = append(dayMap[ch.Date].entries, ch)
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("📋 *Изменения для %s*\n\n", user.GroupName))
+
+	for _, date := range dayKeys {
+		di := dayMap[date]
+		changes := di.entries
+
+		sort.Slice(changes, func(i, j int) bool {
+			a := changes[i].LessonNumber
+			b := changes[j].LessonNumber
+			if a == nil {
+				return false
+			}
+			if b == nil {
+				return true
+			}
+			return *a < *b
+		})
+
+		head := date
+		if di.dayName != "" {
+			head += " (" + capitalize(di.dayName) + ")"
+		}
+		sb.WriteString(fmt.Sprintf("━━━ %s ━━━\n", head))
+
+		for _, ch := range changes {
+			ln := ""
+			if ch.LessonNumber != nil {
+				ln = fmt.Sprintf(" %d п.", *ch.LessonNumber)
+			}
+
+			switch ch.Type {
+			case "removed":
+				subj := ch.Subject
+				if ch.Teacher != "" {
+					subj += fmt.Sprintf(" (%s)", ch.Teacher)
+				}
+				if ch.Note == "снять" || ch.Note == "Снять" {
+					sb.WriteString(fmt.Sprintf("❌ Снято: %s%s\n", subj, ln))
+				} else {
+					sb.WriteString(fmt.Sprintf("❌ Отменено: %s%s\n", subj, ln))
+				}
+			case "added":
+				subj := ch.Subject
+				if ch.Teacher != "" {
+					sb.WriteString(fmt.Sprintf("➕ Добавлено: %s%s\n", subj, ln))
+					sb.WriteString(fmt.Sprintf("   Преподаватель: %s\n", ch.Teacher))
+				} else {
+					sb.WriteString(fmt.Sprintf("➕ Добавлено: %s%s\n", subj, ln))
+				}
+			case "status_change":
+				sb.WriteString(fmt.Sprintf("ℹ️ %s\n", ch.Subject))
+			}
+		}
+		sb.WriteString("\n")
+	}
+
+	h.reply(chatID, sb.String())
 }
 
 // parseInt парсит строку в int64
