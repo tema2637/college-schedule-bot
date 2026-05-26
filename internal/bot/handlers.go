@@ -159,19 +159,19 @@ func (h *Handler) handleMessage(u *schemes.MessageCreatedUpdate) {
 		h.handleUpdateAll(chatID, userID)
 	case "/change_group", "/сменить":
 		h.handleChangeGroup(chatID, userID)
-	case "/myid":
+	case "/myid", "/мойид":
 		h.handleMyID(chatID, userID)
-	case "/togglemyid":
+	case "/togglemyid", "/myidtoggle":
 		h.handleToggleMyID(chatID, userID)
-	case "/ahelp":
+	case "/ahelp", "/админ":
 		h.handleAdminHelp(chatID, userID)
-	case "/addadmin":
+	case "/addadmin", "/добавитьадмина":
 		h.handleAddAdmin(chatID, userID, text)
-	case "/addsuperadmin":
+	case "/addsuperadmin", "/добавитьсупера":
 		h.handleAddSuperAdmin(chatID, userID, text)
-	case "/removeadmin":
+	case "/removeadmin", "/удалитьадмина":
 		h.handleRemoveAdmin(chatID, userID, text)
-	case "/admins":
+	case "/admins", "/админы":
 		h.handleListAdmins(chatID, userID)
 	default:
 		// Удаляем старое "неизвестное" или любое другое сервисное сообщение перед отправкой нового
@@ -1050,23 +1050,23 @@ func (h *Handler) handleAdminHelp(chatID int64, userID int64) {
 	text := fmt.Sprintf(`📋 *Admin Panel*
 
 👤 Роль: %s
-📌 /myid: %s
+📌 /myid (%s): %s
 
 🔧 *Команды админа:*
-• /рассылка — рассылка сообщений всем
-• /замены — парсинг xlsx и рассылка изменений
-• /обновить — полное обновление расписания
-• /ahelp — эта справка`, role, myidStatus)
+• /рассылка (/broadcast) — рассылка всем
+• /замены (/parse_xlsx) — парсинг xlsx
+• /обновить (/update) — обновление расписания
+• /админ (/ahelp) — эта справка`, role, myidStatus)
 
 	if h.storage.IsSuperAdmin(userID) {
 		text += `
 
 👑 *Super Admin:*
-• /addadmin <id> — добавить админа
-• /addsuperadmin <id> — добавить super_admin
-• /removeadmin <id> — удалить роль
-• /admins — список всех ролей
-• /togglemyid — вкл/выкл /myid`
+• /добавитьадмина <id> (/addadmin)
+• /добавитьсупера <id> (/addsuperadmin)
+• /удалитьадмина <id> (/removeadmin)
+• /админы (/admins) — список ролей
+• /myidtoggle (/togglemyid) — вкл/выкл /myid`
 	}
 
 	h.reply(chatID, text)
