@@ -159,6 +159,10 @@ func (h *Handler) handleMessage(u *schemes.MessageCreatedUpdate) {
 		h.handleUpdateAll(chatID, userID)
 	case "/change_group", "/сменить":
 		h.handleChangeGroup(chatID, userID)
+	case "/myid":
+		h.handleMyID(chatID, userID)
+	case "/togglemyid":
+		h.handleToggleMyID(chatID, userID)
 	case "/addadmin":
 		h.handleAddAdmin(chatID, userID, text)
 	case "/addsuperadmin":
@@ -998,6 +1002,32 @@ func (h *Handler) handleFileAttachment(chatID int64, userID int64, rawAttachment
 		h.reply(chatID, fmt.Sprintf("✅ Файл сохранён как расписание.xlsx\n\nМожешь запустить /замены для рассылки."))
 		return
 	}
+}
+
+// ======== /myid ========
+
+func (h *Handler) handleMyID(chatID int64, userID int64) {
+	if !h.storage.IsMyIDEnabled() {
+		return
+	}
+	h.reply(chatID, fmt.Sprintf("🆔 Твой ID: `%d`", userID))
+}
+
+func (h *Handler) handleToggleMyID(chatID int64, userID int64) {
+	if !h.storage.IsSuperAdmin(userID) {
+		h.reply(chatID, "⛔ Только super_admin")
+		return
+	}
+	enabled, err := h.storage.ToggleMyID()
+	if err != nil {
+		h.reply(chatID, fmt.Sprintf("❌ Ошибка: %v", err))
+		return
+	}
+	status := "включена"
+	if !enabled {
+		status = "выключена"
+	}
+	h.reply(chatID, fmt.Sprintf("✅ Команда /myid теперь %s", status))
 }
 
 // ======== УПРАВЛЕНИЕ РОЛЯМИ (super_admin) ========

@@ -68,8 +68,9 @@ type Messages struct {
 
 // AdminsDB структура файла admins.json
 type AdminsDB struct {
-	SuperAdmins []int64 `json:"super_admin"`
-	Admins      []int64 `json:"admin"`
+	SuperAdmins  []int64 `json:"super_admin"`
+	Admins       []int64 `json:"admin"`
+	MyIDEnabled  bool    `json:"myid_enabled"`
 }
 
 // Manager управляет всеми JSON-файлами данных
@@ -282,12 +283,27 @@ func (m *Manager) RemoveAdmin(userID int64) error {
 func (m *Manager) GetAdmins() AdminsDB {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	// Копируем для безопасности
 	sa := make([]int64, len(m.adminsDB.SuperAdmins))
 	copy(sa, m.adminsDB.SuperAdmins)
 	a := make([]int64, len(m.adminsDB.Admins))
 	copy(a, m.adminsDB.Admins)
-	return AdminsDB{SuperAdmins: sa, Admins: a}
+	return AdminsDB{SuperAdmins: sa, Admins: a, MyIDEnabled: m.adminsDB.MyIDEnabled}
+}
+
+// IsMyIDEnabled проверяет, включена ли команда /myid
+func (m *Manager) IsMyIDEnabled() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.adminsDB.MyIDEnabled
+}
+
+// ToggleMyID переключает состояние команды /myid, возвращает новое состояние
+func (m *Manager) ToggleMyID() (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.adminsDB.MyIDEnabled = !m.adminsDB.MyIDEnabled
+	err := m.saveAdmins()
+	return m.adminsDB.MyIDEnabled, err
 }
 
 // loadMessages загружает шаблоны сообщений из JSON
