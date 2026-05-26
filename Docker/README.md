@@ -1,33 +1,30 @@
 # Docker — College Schedule Bot
 
-## Состав папки
-- `Dockerfile` — сборка образа (мультистейдж: Go build → Alpine)
-- `entrypoint.sh` — скрипт запуска внутри контейнера
-- `docker-compose.yml` — для удобного запуска
-- `config.json` — конфиг (обновится автоматически)
-- `schedule.json` — файл расписания
-- `changes.json` — файл изменений
-- `messages.json` — шаблоны сообщений
-- `users.json` — пользователи
-- `tools/` — Python-скрипты для парсинга
+Самодостаточная папка: содержит исходники, конфиги и скрипты для сборки и запуска в Docker.
 
-## Требования
-- Docker Engine (>= 20.x)
-- Docker Compose (>= 2.x)
+## Быстрый старт
 
-## Запуск
-
-### 1. Сборка и запуск
 ```bash
-cd /root/college-schedule-distro/Docker
+cd Docker
 docker compose up -d
 ```
 
-Docker compose сделает:
-- сборку образа (скачает golang, зависимости, скомпилирует бота)
-- при старте контейнера: новый туннель → обновление конфига → запуск бота
+## Пошагово
 
-### 2. Проверка
+### 1. Установка Docker (если нет)
+```bash
+bash install.sh
+```
+
+### 2. Сборка и запуск
+```bash
+cd Docker
+docker compose up -d
+```
+
+Сборка займёт ~1-2 минуты (скачивание Go, компиляция, alpine).
+
+### 3. Проверка
 ```bash
 docker compose logs -f
 ```
@@ -41,20 +38,36 @@ docker compose logs -f
 🤖 Запуск бота...
 ```
 
-### 3. Остановка
+### 4. Остановка
 ```bash
 docker compose down
 ```
 
-### 4. Перезапуск с новым туннелем
+### 5. Перезапуск с новым туннелем
 ```bash
 docker compose restart
 ```
 Каждый рестарт контейнера создаёт новый туннель и регистрирует webhook.
 
-### 5. Обновление бота (пересборка)
-Если изменился код:
+## Сборка без compose
+
 ```bash
-docker compose build --no-cache
-docker compose up -d
+docker build -t college-bot .
+docker run -d --restart unless-stopped -p 8080:8080 --name college-bot college-bot
+```
+
+## Структура папки
+
+```
+Docker/
+├── Dockerfile           # сборка (мультистейдж)
+├── entrypoint.sh        # автотуннель при старте
+├── docker-compose.yml   # docker compose up -d
+├── install.sh           # установка Docker
+├── README.md
+├── cmd/bot/main.go      # исходники Go
+├── internal/            # Go-пакеты
+├── go.mod / go.sum      # зависимости
+├── *.json               # конфиги
+└── tools/               # Python-скрипты
 ```
