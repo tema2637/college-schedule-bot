@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -71,10 +72,37 @@ func NewHandler(
 	}
 }
 
+// getStack возвращает стек вызовов для диагностики
+func getStack() string {
+	buf := make([]byte, 4096)
+	n := runtime.Stack(buf, false)
+	return string(buf[:n])
+}
+
+// crashLog логирует критическую ошибку и завершает процесс для перезапуска
+func crashLog(format string, args ...interface{}) {
+	msg := fmt.Sprintf("💥 КРИТИЧЕСКАЯ ОШИБКА: "+format, args...)
+	log.Println("═══════════════════════════════════════════")
+	log.Println(msg)
+	log.Println(getStack())
+	log.Println("═══════════════════════════════════════════")
+	log.Println("🔄 Бот будет перезапущен через 5 секунд...")
+	time.Sleep(5 * time.Second)
+	os.Exit(1)
+}
+
 func (h *Handler) Start(ctx context.Context) {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				crashLog("канал ошибок API: %v", r)
+			}
+		}()
 		for err := range h.api.GetErrors() {
 			log.Printf("[API ERROR] %v", err)
+			if err != nil {
+				crashLog("неисправимая ошибка API: %v", err)
+			}
 		}
 	}()
 	go h.schedulerLoop(ctx)
@@ -84,9 +112,16 @@ func (h *Handler) Start(ctx context.Context) {
 		go h.handleUpdate(u)
 	}
 	log.Println("[BOT] Канал обновлений закрыт")
+	crashLog("канал обновлений неожиданно закрыт")
 }
 
 func (h *Handler) schedulerLoop(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			crashLog("планировщик: %v", r)
+		}
+	}()
+
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
@@ -179,7 +214,7 @@ func (h *Handler) HandleUpdate(update schemes.UpdateInterface) {
 func (h *Handler) handleUpdate(update schemes.UpdateInterface) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("[PANIC] %v", r)
+			crashLog("обработка обновления: %v\nстек: %s", r, getStack())
 		}
 	}()
 
