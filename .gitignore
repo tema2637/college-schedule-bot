@@ -26,3 +26,4 @@ venv/
 расписание.xlsx
 *.tmp
 *.bak
+panic.log
