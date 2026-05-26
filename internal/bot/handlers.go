@@ -22,6 +22,8 @@ import (
 	"college-schedule-bot/internal/tools"
 )
 
+var msk = time.FixedZone("MSK", 3*60*60)
+
 type Handler struct {
 	api            *maxbot.Api
 	storage        *storage.Manager
@@ -37,6 +39,10 @@ type Handler struct {
 	lastActionTime map[int64]time.Time
 	lastWeekNav    map[int64]int
 	lastCorrMsgID  map[int64]string
+	// планировщик
+	reminded1630    bool
+	sentCorr1700    bool
+	schedulerDate   string
 }
 
 func NewHandler(
@@ -71,12 +77,96 @@ func (h *Handler) Start(ctx context.Context) {
 			log.Printf("[API ERROR] %v", err)
 		}
 	}()
+	go h.schedulerLoop(ctx)
 	upd := h.api.GetUpdates(ctx)
 	log.Println("[BOT] Бот запущен, ожидаю обновления...")
 	for u := range upd {
 		go h.handleUpdate(u)
 	}
 	log.Println("[BOT] Канал обновлений закрыт")
+}
+
+func (h *Handler) schedulerLoop(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			h.checkScheduledTasks()
+		}
+	}
+}
+
+func (h *Handler) checkScheduledTasks() {
+	now := time.Now().In(msk)
+	today := now.Format("2006-01-02")
+
+	// Сброс флагов при смене дня
+	if h.schedulerDate != today {
+		h.reminded1630 = false
+		h.sentCorr1700 = false
+		h.schedulerDate = today
+	}
+
+	currentMin := now.Hour()*60 + now.Minute()
+
+	// 16:30 — напомнить админам
+	if currentMin == 16*60+30 && !h.reminded1630 {
+		h.reminded1630 = true
+		admins := h.storage.GetAdmins()
+		for _, id := range admins.SuperAdmins {
+			h.sendToUser(id, "⏰ *Напоминание:* пора прислать файл с корректировками!")
+		}
+		for _, id := range admins.Admins {
+			h.sendToUser(id, "⏰ *Напоминание:* пора прислать файл с корректировками!")
+		}
+		log.Printf("[SCHEDULER] напоминание админам в 16:30")
+	}
+
+	// 17:00 — разослать корректировки всем пользователям
+	if currentMin == 17*60 && !h.sentCorr1700 {
+		h.sentCorr1700 = true
+		h.broadcastCorrections()
+		log.Printf("[SCHEDULER] рассылка корректировок в 17:00")
+	}
+}
+
+func (h *Handler) broadcastCorrections() {
+	users := h.storage.GetAllUsers()
+	if len(users) == 0 {
+		return
+	}
+
+	sent, failed := 0, 0
+	sentByGroup := make(map[string]int)
+
+	for uid, u := range users {
+		text := h.buildChangesForGroup(uid, u.GroupName)
+		if text == "" {
+			text = fmt.Sprintf("📭 Для группы *%s* изменений нет", u.GroupName)
+		}
+		if err := h.sendToUser(uid, text); err != nil {
+			log.Printf("[SCHEDULER] ошибка отправки user=%d: %v", uid, err)
+			failed++
+		} else {
+			sent++
+			sentByGroup[normalizeGroupName(u.GroupName)]++
+		}
+		time.Sleep(100 * time.Millisecond) // небольшая пауза между отправками
+	}
+
+	// Уведомление админам
+	admins := h.storage.GetAdmins()
+	summary := fmt.Sprintf("📊 *Рассылка корректировок выполнена*\n\nОтправлено: %d\nОшибок: %d", sent, failed)
+	for _, id := range admins.SuperAdmins {
+		h.sendToUser(id, summary)
+	}
+	for _, id := range admins.Admins {
+		h.sendToUser(id, summary)
+	}
 }
 
 func (h *Handler) Stop(ctx context.Context) error { return nil }
@@ -1064,6 +1154,21 @@ func (h *Handler) handleFileAttachment(chatID int64, userID int64, rawAttachment
 
 		log.Printf("[FILE] сохранён: %s", outPath)
 		h.reply(chatID, fmt.Sprintf("✅ Файл сохранён как расписание.xlsx\n\nМожешь запустить /замены для рассылки."))
+
+		// Уведомляем всех админов о загрузке
+		admins := h.storage.GetAdmins()
+		notify := fmt.Sprintf("📁 *Загружен новый файл корректировок*\n\nРасписание будет обновлено в 17:00.\nЕсли хочешь запустить сейчас — используй /замены")
+		for _, id := range admins.SuperAdmins {
+			if id != userID {
+				h.sendToUser(id, notify)
+			}
+		}
+		for _, id := range admins.Admins {
+			if id != userID {
+				h.sendToUser(id, notify)
+			}
+		}
+
 		return
 	}
 }
