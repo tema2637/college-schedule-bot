@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"college-schedule-bot/internal/storage"
@@ -86,10 +87,15 @@ func GetShortDayName(dayOfWeek int) string {
 }
 
 // Filter фильтрует занятия по группе, неделе и дню недели
+func normalizeName(s string) string {
+	return strings.ReplaceAll(strings.TrimSpace(s), " ", "")
+}
+
 func (e *Engine) Filter(schedule []storage.ScheduleLesson, groupName string, weekNum int, dayOfWeek int) []storage.ScheduleLesson {
 	var filtered []storage.ScheduleLesson
+	normalizedGroup := normalizeName(groupName)
 	for _, lesson := range schedule {
-		if lesson.Group.Name != groupName || lesson.TimeSlot.DayOfWeek != dayOfWeek {
+		if normalizeName(lesson.Group.Name) != normalizedGroup || lesson.TimeSlot.DayOfWeek != dayOfWeek {
 			continue
 		}
 		for _, week := range lesson.Weeks {
