@@ -163,6 +163,8 @@ func (h *Handler) handleMessage(u *schemes.MessageCreatedUpdate) {
 		h.handleMyID(chatID, userID)
 	case "/togglemyid":
 		h.handleToggleMyID(chatID, userID)
+	case "/ahelp":
+		h.handleAdminHelp(chatID, userID)
 	case "/addadmin":
 		h.handleAddAdmin(chatID, userID, text)
 	case "/addsuperadmin":
@@ -1028,6 +1030,46 @@ func (h *Handler) handleToggleMyID(chatID int64, userID int64) {
 		status = "выключена"
 	}
 	h.reply(chatID, fmt.Sprintf("✅ Команда /myid теперь %s", status))
+}
+
+func (h *Handler) handleAdminHelp(chatID int64, userID int64) {
+	if !h.storage.IsAdmin(userID) && !h.storage.IsSuperAdmin(userID) {
+		return
+	}
+
+	role := "🔧 Admin"
+	if h.storage.IsSuperAdmin(userID) {
+		role = "👑 Super Admin"
+	}
+
+	myidStatus := "включена"
+	if !h.storage.IsMyIDEnabled() {
+		myidStatus = "выключена"
+	}
+
+	text := fmt.Sprintf(`📋 *Admin Panel*
+
+👤 Роль: %s
+📌 /myid: %s
+
+🔧 *Команды админа:*
+• /рассылка — рассылка сообщений всем
+• /замены — парсинг xlsx и рассылка изменений
+• /обновить — полное обновление расписания
+• /ahelp — эта справка`, role, myidStatus)
+
+	if h.storage.IsSuperAdmin(userID) {
+		text += `
+
+👑 *Super Admin:*
+• /addadmin <id> — добавить админа
+• /addsuperadmin <id> — добавить super_admin
+• /removeadmin <id> — удалить роль
+• /admins — список всех ролей
+• /togglemyid — вкл/выкл /myid`
+	}
+
+	h.reply(chatID, text)
 }
 
 // ======== УПРАВЛЕНИЕ РОЛЯМИ (super_admin) ========
