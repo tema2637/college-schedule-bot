@@ -12,9 +12,6 @@ type Config struct {
 	// APIToken - токен для доступа к API бота
 	APIToken string `json:"api_token"`
 	
-	// AdminIDs - список ID администраторов бота
-	AdminIDs []int64 `json:"admin_ids"`
-	
 	// SemesterStartDate - дата начала семестра в формате DD.MM.YYYY
 	SemesterStartDate string `json:"semester_start_date"`
 	
@@ -45,6 +42,9 @@ type FilePaths struct {
 	// Users - путь к файлу пользователей
 	Users string `json:"users"`
 	
+	// Admins - путь к файлу администраторов
+	Admins string `json:"admins"`
+	
 	// Messages - путь к файлу шаблонов сообщений
 	Messages string `json:"messages"`
 }
@@ -65,12 +65,4 @@ func Load(path string) (*Config, error) {
 	return &config, nil
 }
 
-// IsAdmin проверяет, является ли пользователь администратором
-func (c *Config) IsAdmin(userID int64) bool {
-	for _, adminID := range c.AdminIDs {
-		if adminID == userID {
-			return true
-		}
-	}
-	return false
-}
+

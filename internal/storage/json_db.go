@@ -74,6 +74,9 @@ type Manager struct {
 	// users - кэш данных пользователей
 	users map[int64]User
 	
+	// admins - кэш ID администраторов
+	admins []int64
+	
 	// schedule - кэш расписания
 	schedule []ScheduleLesson
 	
@@ -107,6 +110,11 @@ func (m *Manager) LoadAll() error {
 	// Загрузка пользователей
 	if err := m.loadUsers(); err != nil {
 		return fmt.Errorf("ошибка загрузки пользователей: %w", err)
+	}
+
+	// Загрузка администраторов
+	if err := m.loadAdmins(); err != nil {
+		return fmt.Errorf("ошибка загрузки администраторов: %w", err)
 	}
 
 	// Загрузка расписания
@@ -145,6 +153,82 @@ func (m *Manager) loadSchedule() error {
 	}
 
 	return json.Unmarshal(data, &m.schedule)
+}
+
+// loadAdmins загружает список администраторов из JSON
+func (m *Manager) loadAdmins() error {
+	if m.filePaths.Admins == "" {
+		m.admins = []int64{}
+		return nil
+	}
+	data, err := os.ReadFile(m.filePaths.Admins)
+	if err != nil {
+		if os.IsNotExist(err) {
+			m.admins = []int64{}
+			return nil
+		}
+		return err
+	}
+	return json.Unmarshal(data, &m.admins)
+}
+
+// saveAdmins сохраняет список администраторов в JSON
+func (m *Manager) saveAdmins() error {
+	if m.filePaths.Admins == "" {
+		return nil
+	}
+	data, err := json.MarshalIndent(m.admins, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(m.filePaths.Admins, data, 0644)
+}
+
+// IsAdmin проверяет, является ли пользователь администратором
+func (m *Manager) IsAdmin(userID int64) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, id := range m.admins {
+		if id == userID {
+			return true
+		}
+	}
+	return false
+}
+
+// AddAdmin добавляет пользователя в администраторы
+func (m *Manager) AddAdmin(userID int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, id := range m.admins {
+		if id == userID {
+			return nil // уже админ
+		}
+	}
+	m.admins = append(m.admins, userID)
+	return m.saveAdmins()
+}
+
+// RemoveAdmin удаляет пользователя из администраторов
+func (m *Manager) RemoveAdmin(userID int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i, id := range m.admins {
+		if id == userID {
+			m.admins = append(m.admins[:i], m.admins[i+1:]...)
+			return m.saveAdmins()
+		}
+	}
+	return nil
+}
+
+// GetAdmins возвращает копию списка администраторов
+func (m *Manager) GetAdmins() []int64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	copy := make([]int64, len(m.admins))
+	copy = append(copy, m.admins...)
+	return copy
 }
 
 // loadMessages загружает шаблоны сообщений из JSON

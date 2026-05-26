@@ -618,7 +618,7 @@ func (h *Handler) handleChangeGroup(chatID int64, userID int64) {
 }
 
 func (h *Handler) handleBroadcastCommand(chatID int64, userID int64) {
-	if !h.config.IsAdmin(userID) {
+	if !h.storage.IsAdmin(userID) {
 		text, _ := h.renderer.Render("no_rights", nil)
 		h.reply(chatID, text)
 		log.Printf("[BROADCAST] отказано userID=%d, chatID=%d (не админ)", userID, chatID)
@@ -638,7 +638,7 @@ func (h *Handler) handleBroadcastCommand(chatID int64, userID int64) {
 }
 
 func (h *Handler) handleBroadcastMessage(chatID int64, userID int64, text string) {
-	if !h.config.IsAdmin(userID) {
+	if !h.storage.IsAdmin(userID) {
 		text, _ := h.renderer.Render("no_rights", nil)
 		h.reply(chatID, text)
 		return
@@ -664,7 +664,7 @@ func (h *Handler) handleBroadcastMessage(chatID int64, userID int64, text string
 }
 
 func (h *Handler) handleBroadcastConfirm(chatID int64, userID int64) {
-	if !h.config.IsAdmin(userID) {
+	if !h.storage.IsAdmin(userID) {
 		return
 	}
 	text, ok := h.broadcast[userID]
@@ -700,7 +700,7 @@ func (h *Handler) handleBroadcastConfirm(chatID int64, userID int64) {
 }
 
 func (h *Handler) IsAdmin(userID int64) bool {
-	return h.config.IsAdmin(userID)
+	return h.storage.IsAdmin(userID)
 }
 
 
@@ -720,7 +720,7 @@ type ChangeEntry struct {
 }
 
 func (h *Handler) handleParseXlsx(chatID int64, userID int64) {
-	if !h.config.IsAdmin(userID) {
+	if !h.storage.IsAdmin(userID) {
 		text, _ := h.renderer.Render("no_rights", nil)
 		h.reply(chatID, text)
 		return
@@ -918,7 +918,7 @@ func capitalize(s string) string {
 // ======== ПОЛНОЕ ОБНОВЛЕНИЕ (РАСПИСАНИЕ + КОРРЕКТИРОВКИ) ========
 
 func (h *Handler) handleUpdateAll(chatID int64, userID int64) {
-	if !h.config.IsAdmin(userID) {
+	if !h.storage.IsAdmin(userID) {
 		text, _ := h.renderer.Render("no_rights", nil)
 		h.reply(chatID, text)
 		return
@@ -947,7 +947,7 @@ func (h *Handler) handleUpdateAll(chatID int64, userID int64) {
 
 // handleFileAttachment — загрузка xlsx-файла и сохранение как расписание.xlsx
 func (h *Handler) handleFileAttachment(chatID int64, userID int64, rawAttachments []json.RawMessage) {
-	if !h.config.IsAdmin(userID) {
+	if !h.storage.IsAdmin(userID) {
 		return
 	}
 
