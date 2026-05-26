@@ -1050,7 +1050,7 @@ func (h *Handler) handleAdminHelp(chatID int64, userID int64) {
 	text := fmt.Sprintf(`📋 *Admin Panel*
 
 👤 Роль: %s
-📌 /myid (%s): %s
+📌 /myid: %s
 
 🔧 *Команды админа:*
 • /рассылка (/broadcast) — рассылка всем
