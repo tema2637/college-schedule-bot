@@ -1390,25 +1390,25 @@ func (h *Handler) reply(chatID int64, text string) {
 
 // sendMessage — отправка текста
 func (h *Handler) sendMessage(chatID int64, text string) (*schemes.Message, error) {
-	m := maxbot.NewMessage().SetChat(chatID).SetText(text)
+	m := maxbot.NewMessage().SetChat(chatID).SetText(text).SetFormat(schemes.Markdown)
 	return h.api.Messages.SendWithResult(context.Background(), m)
 }
 
 // sendToUser — отправка по user_id
 func (h *Handler) sendToUser(userID int64, text string) error {
-	m := maxbot.NewMessage().SetUser(userID).SetText(text)
+	m := maxbot.NewMessage().SetUser(userID).SetText(text).SetFormat(schemes.Markdown)
 	return h.api.Messages.Send(context.Background(), m)
 }
 
 // sendMessageWithInlineKeyboard — отправка с inline-клавиатурой
 func (h *Handler) sendMessageWithInlineKeyboard(chatID int64, text string, keyboard *maxbot.Keyboard) (*schemes.Message, error) {
-	m := maxbot.NewMessage().SetChat(chatID).SetText(text).AddKeyboard(keyboard)
+	m := maxbot.NewMessage().SetChat(chatID).SetText(text).SetFormat(schemes.Markdown).AddKeyboard(keyboard)
 	return h.api.Messages.SendWithResult(context.Background(), m)
 }
 
 // editMessage — редактирование существующего сообщения
 func (h *Handler) editMessage(chatID int64, messageID string, text string, keyboard *maxbot.Keyboard) error {
-	m := maxbot.NewMessage().SetChat(chatID).SetText(text).AddKeyboard(keyboard)
+	m := maxbot.NewMessage().SetChat(chatID).SetText(text).SetFormat(schemes.Markdown).AddKeyboard(keyboard)
 	return h.api.Messages.EditMessage(context.Background(), messageID, m)
 }
 
