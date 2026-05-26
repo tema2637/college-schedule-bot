@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -21,6 +22,17 @@ import (
 // Основная точка входа в приложение бота
 func main() {
 	log.Println("Zapusk kolledzh-bota...")
+
+	// Переходим в директорию с бинарником (чтобы файлы искались относительно него)
+	exe, err := os.Executable()
+	if err == nil {
+		exeDir := filepath.Dir(exe)
+		if err := os.Chdir(exeDir); err != nil {
+			log.Printf("[MAIN] не удалось сменить директорию на %s: %v", exeDir, err)
+		} else {
+			log.Printf("[MAIN] рабочая директория: %s", exeDir)
+		}
+	}
 
 	// Загрузка конфигурации
 	cfg, err := config.Load("config.json")
