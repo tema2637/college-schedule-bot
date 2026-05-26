@@ -66,6 +66,12 @@ type Messages struct {
 	Error string `json:"error"`
 }
 
+// AdminsDB структура файла admins.json
+type AdminsDB struct {
+	SuperAdmins []int64 `json:"super_admin"`
+	Admins      []int64 `json:"admin"`
+}
+
 // Manager управляет всеми JSON-файлами данных
 type Manager struct {
 	// filePaths - пути к файлам из конфигурации
@@ -74,8 +80,8 @@ type Manager struct {
 	// users - кэш данных пользователей
 	users map[int64]User
 	
-	// admins - кэш ID администраторов
-	admins []int64
+	// adminsDB - кэш ролей
+	adminsDB AdminsDB
 	
 	// schedule - кэш расписания
 	schedule []ScheduleLesson
@@ -158,18 +164,18 @@ func (m *Manager) loadSchedule() error {
 // loadAdmins загружает список администраторов из JSON
 func (m *Manager) loadAdmins() error {
 	if m.filePaths.Admins == "" {
-		m.admins = []int64{}
+		m.adminsDB = AdminsDB{}
 		return nil
 	}
 	data, err := os.ReadFile(m.filePaths.Admins)
 	if err != nil {
 		if os.IsNotExist(err) {
-			m.admins = []int64{}
+			m.adminsDB = AdminsDB{}
 			return nil
 		}
 		return err
 	}
-	return json.Unmarshal(data, &m.admins)
+	return json.Unmarshal(data, &m.adminsDB)
 }
 
 // saveAdmins сохраняет список администраторов в JSON
@@ -177,18 +183,23 @@ func (m *Manager) saveAdmins() error {
 	if m.filePaths.Admins == "" {
 		return nil
 	}
-	data, err := json.MarshalIndent(m.admins, "", "  ")
+	data, err := json.MarshalIndent(m.adminsDB, "", "  ")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(m.filePaths.Admins, data, 0644)
 }
 
-// IsAdmin проверяет, является ли пользователь администратором
+// IsAdmin проверяет, есть ли у пользователя роль admin или super_admin
 func (m *Manager) IsAdmin(userID int64) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	for _, id := range m.admins {
+	for _, id := range m.adminsDB.Admins {
+		if id == userID {
+			return true
+		}
+	}
+	for _, id := range m.adminsDB.SuperAdmins {
 		if id == userID {
 			return true
 		}
@@ -196,39 +207,87 @@ func (m *Manager) IsAdmin(userID int64) bool {
 	return false
 }
 
-// AddAdmin добавляет пользователя в администраторы
+// IsSuperAdmin проверяет роль super_admin
+func (m *Manager) IsSuperAdmin(userID int64) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, id := range m.adminsDB.SuperAdmins {
+		if id == userID {
+			return true
+		}
+	}
+	return false
+}
+
+// AddAdmin добавляет пользователя в админы (требует super_admin для вызова)
 func (m *Manager) AddAdmin(userID int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for _, id := range m.admins {
+	// Проверяем, нет ли уже в super_admin
+	for _, id := range m.adminsDB.SuperAdmins {
 		if id == userID {
-			return nil // уже админ
+			return nil
 		}
 	}
-	m.admins = append(m.admins, userID)
+	// Проверяем, нет ли уже в admin
+	for _, id := range m.adminsDB.Admins {
+		if id == userID {
+			return nil
+		}
+	}
+	m.adminsDB.Admins = append(m.adminsDB.Admins, userID)
 	return m.saveAdmins()
 }
 
-// RemoveAdmin удаляет пользователя из администраторов
+// AddSuperAdmin добавляет пользователя в super_admin
+func (m *Manager) AddSuperAdmin(userID int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, id := range m.adminsDB.SuperAdmins {
+		if id == userID {
+			return nil
+		}
+	}
+	// Удаляем из admin если был там
+	for i, id := range m.adminsDB.Admins {
+		if id == userID {
+			m.adminsDB.Admins = append(m.adminsDB.Admins[:i], m.adminsDB.Admins[i+1:]...)
+			break
+		}
+	}
+	m.adminsDB.SuperAdmins = append(m.adminsDB.SuperAdmins, userID)
+	return m.saveAdmins()
+}
+
+// RemoveAdmin удаляет пользователя из любой роли
 func (m *Manager) RemoveAdmin(userID int64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for i, id := range m.admins {
+	for i, id := range m.adminsDB.SuperAdmins {
 		if id == userID {
-			m.admins = append(m.admins[:i], m.admins[i+1:]...)
+			m.adminsDB.SuperAdmins = append(m.adminsDB.SuperAdmins[:i], m.adminsDB.SuperAdmins[i+1:]...)
+			return m.saveAdmins()
+		}
+	}
+	for i, id := range m.adminsDB.Admins {
+		if id == userID {
+			m.adminsDB.Admins = append(m.adminsDB.Admins[:i], m.adminsDB.Admins[i+1:]...)
 			return m.saveAdmins()
 		}
 	}
 	return nil
 }
 
-// GetAdmins возвращает копию списка администраторов
-func (m *Manager) GetAdmins() []int64 {
+// GetAdmins возвращает структуру ролей
+func (m *Manager) GetAdmins() AdminsDB {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	copy := make([]int64, len(m.admins))
-	copy = append(copy, m.admins...)
-	return copy
+	// Копируем для безопасности
+	sa := make([]int64, len(m.adminsDB.SuperAdmins))
+	copy(sa, m.adminsDB.SuperAdmins)
+	a := make([]int64, len(m.adminsDB.Admins))
+	copy(a, m.adminsDB.Admins)
+	return AdminsDB{SuperAdmins: sa, Admins: a}
 }
 
 // loadMessages загружает шаблоны сообщений из JSON

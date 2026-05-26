@@ -159,6 +159,14 @@ func (h *Handler) handleMessage(u *schemes.MessageCreatedUpdate) {
 		h.handleUpdateAll(chatID, userID)
 	case "/change_group", "/сменить":
 		h.handleChangeGroup(chatID, userID)
+	case "/addadmin":
+		h.handleAddAdmin(chatID, userID, text)
+	case "/addsuperadmin":
+		h.handleAddSuperAdmin(chatID, userID, text)
+	case "/removeadmin":
+		h.handleRemoveAdmin(chatID, userID, text)
+	case "/admins":
+		h.handleListAdmins(chatID, userID)
 	default:
 		// Удаляем старое "неизвестное" или любое другое сервисное сообщение перед отправкой нового
 		if msgID, ok := h.lastMsgID[userID]; ok {
@@ -990,6 +998,107 @@ func (h *Handler) handleFileAttachment(chatID int64, userID int64, rawAttachment
 		h.reply(chatID, fmt.Sprintf("✅ Файл сохранён как расписание.xlsx\n\nМожешь запустить /замены для рассылки."))
 		return
 	}
+}
+
+// ======== УПРАВЛЕНИЕ РОЛЯМИ (super_admin) ========
+
+func (h *Handler) handleAddAdmin(chatID int64, userID int64, text string) {
+	if !h.storage.IsSuperAdmin(userID) {
+		h.reply(chatID, "⛔ Только super_admin может добавлять админов")
+		return
+	}
+	parts := strings.Fields(text)
+	if len(parts) < 2 {
+		h.reply(chatID, "Использование: /addadmin <user_id>")
+		return
+	}
+	targetID := parseInt(parts[1])
+	if targetID == 0 {
+		h.reply(chatID, "❌ Неверный ID")
+		return
+	}
+	if err := h.storage.AddAdmin(targetID); err != nil {
+		h.reply(chatID, fmt.Sprintf("❌ Ошибка: %v", err))
+		return
+	}
+	h.reply(chatID, fmt.Sprintf("✅ Пользователь %d добавлен в admin", targetID))
+}
+
+func (h *Handler) handleAddSuperAdmin(chatID int64, userID int64, text string) {
+	if !h.storage.IsSuperAdmin(userID) {
+		h.reply(chatID, "⛔ Только super_admin может добавлять super_admin")
+		return
+	}
+	parts := strings.Fields(text)
+	if len(parts) < 2 {
+		h.reply(chatID, "Использование: /addsuperadmin <user_id>")
+		return
+	}
+	targetID := parseInt(parts[1])
+	if targetID == 0 {
+		h.reply(chatID, "❌ Неверный ID")
+		return
+	}
+	if err := h.storage.AddSuperAdmin(targetID); err != nil {
+		h.reply(chatID, fmt.Sprintf("❌ Ошибка: %v", err))
+		return
+	}
+	h.reply(chatID, fmt.Sprintf("✅ Пользователь %d добавлен в super_admin", targetID))
+}
+
+func (h *Handler) handleRemoveAdmin(chatID int64, userID int64, text string) {
+	if !h.storage.IsSuperAdmin(userID) {
+		h.reply(chatID, "⛔ Только super_admin может удалять роли")
+		return
+	}
+	parts := strings.Fields(text)
+	if len(parts) < 2 {
+		h.reply(chatID, "Использование: /removeadmin <user_id>")
+		return
+	}
+	targetID := parseInt(parts[1])
+	if targetID == 0 {
+		h.reply(chatID, "❌ Неверный ID")
+		return
+	}
+	if err := h.storage.RemoveAdmin(targetID); err != nil {
+		h.reply(chatID, fmt.Sprintf("❌ Ошибка: %v", err))
+		return
+	}
+	h.reply(chatID, fmt.Sprintf("✅ Пользователь %d удалён из всех ролей", targetID))
+}
+
+func (h *Handler) handleListAdmins(chatID int64, userID int64) {
+	if !h.storage.IsSuperAdmin(userID) {
+		h.reply(chatID, "⛔ Только super_admin может просматривать админов")
+		return
+	}
+	admins := h.storage.GetAdmins()
+	reply := "📋 Текущие роли:\n\n"
+	reply += "👑 *Super Admin:*\n"
+	if len(admins.SuperAdmins) == 0 {
+		reply += "  нет\n"
+	} else {
+		for _, id := range admins.SuperAdmins {
+			reply += fmt.Sprintf("  • `%d`\n", id)
+		}
+	}
+	reply += "\n🔧 *Admin:*\n"
+	if len(admins.Admins) == 0 {
+		reply += "  нет\n"
+	} else {
+		for _, id := range admins.Admins {
+			reply += fmt.Sprintf("  • `%d`\n", id)
+		}
+	}
+	h.reply(chatID, reply)
+}
+
+// parseInt парсит строку в int64
+func parseInt(s string) int64 {
+	var id int64
+	fmt.Sscanf(s, "%d", &id)
+	return id
 }
 
 // downloadFile скачивает файл по URL и сохраняет локально
