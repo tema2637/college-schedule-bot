@@ -1,68 +1,72 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 )
 
-// Config содержит все настройки бота из JSON
-// Загружается из файла config.json
+// Config содержит все настройки бота (большая часть захардкожена)
 type Config struct {
-	// APIToken - токен для доступа к API бота
-	APIToken string `json:"api_token"`
-	
-	// SemesterStartDate - дата начала семестра в формате DD.MM.YYYY
-	SemesterStartDate string `json:"semester_start_date"`
-	
-	// Files - пути к файлам данных
-	Files FilePaths `json:"files"`
+	// APIToken — токен для доступа к API бота (из BOT_TOKEN env)
+	APIToken string
 
-	// ToolsDir - директория со вспомогательными Python-скриптами
-	ToolsDir string `json:"tools_dir"`
-
-	// WebhookURL - URL для приёма webhook от Max API (если пусто — используется long polling)
-	WebhookURL string `json:"webhook_url,omitempty"`
-
-	// WebhookPort - порт для webhook-сервера (по умолчанию 8080)
-	WebhookPort string `json:"webhook_port,omitempty"`
-
-	// WebhookPath - путь для webhook endpoint (по умолчанию /webhook)
-	WebhookPath string `json:"webhook_path,omitempty"`
-
-	// WebhookFilter - фильтр событий для webhook (опционально)
-	WebhookFilter string `json:"webhook_filter,omitempty"`
+	// AdminIDs — список ID администраторов
+	AdminIDs []int64
 }
 
-// FilePaths содержит пути к JSON-файлам данных
-type FilePaths struct {
-	// Schedule - путь к файлу расписания
-	Schedule string `json:"schedule"`
-	
-	// Users - путь к файлу пользователей
-	Users string `json:"users"`
-	
-	// Admins - путь к файлу администраторов
-	Admins string `json:"admins"`
-	
-	// Messages - путь к файлу шаблонов сообщений
-	Messages string `json:"messages"`
-}
-
-// Load загружает конфигурацию из указанного JSON-файла
-// Возвращает ошибку если файл не найден или имеет неверный формат
-func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("ошибка чтения файла конфигурации: %w", err)
+// Load загружает конфигурацию: токен из env, остальное — константы
+func Load() (*Config, error) {
+	token := os.Getenv("BOT_TOKEN")
+	if token == "" {
+		return nil, fmt.Errorf("BOT_TOKEN не задан")
 	}
-	
-	var config Config
-	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("ошибка парсинга конфигурации: %w", err)
+
+	// Админы захардкожены
+	adminStrs := strings.Split(os.Getenv("ADMIN_IDS"), ",")
+	if len(adminStrs) == 0 || (len(adminStrs) == 1 && adminStrs[0] == "") {
+		adminStrs = []string{"173390202", "8385088944"}
 	}
-	
-	return &config, nil
+	var adminIDs []int64
+	for _, s := range adminStrs {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("неверный admin_id '%s': %w", s, err)
+		}
+		adminIDs = append(adminIDs, id)
+	}
+
+	return &Config{
+		APIToken: token,
+		AdminIDs: adminIDs,
+	}, nil
 }
 
+// IsAdmin проверяет, является ли пользователь администратором
+func (c *Config) IsAdmin(userID int64) bool {
+	for _, adminID := range c.AdminIDs {
+		if adminID == userID {
+			return true
+		}
+	}
+	return false
+}
 
+// Хардкоженные константы
+const (
+	SemesterStartDate = "11.01.2026"
+
+	SchedulePath = "schedule.json"
+	UsersPath    = "users.json"
+	ChangesPath  = "changes.json"
+
+	ToolsDir = "tools"
+
+	WebhookPort = ":8080"
+	WebhookPath = "/webhook"
+)
