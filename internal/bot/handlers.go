@@ -987,7 +987,8 @@ func capitalize(s string) string {
 	if s == "" {
 		return ""
 	}
-	return strings.ToUpper(s[:1]) + s[1:]
+	runes := []rune(s)
+	return strings.ToUpper(string(runes[:1])) + string(runes[1:])
 }
 
 // ======== ПОЛНОЕ ОБНОВЛЕНИЕ (РАСПИСАНИЕ + КОРРЕКТИРОВКИ) ========

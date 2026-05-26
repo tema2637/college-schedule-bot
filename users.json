@@ -3,12 +3,14 @@
     "first_name": "Алёна",
     "last_name": "Сапрыкина",
     "group_name": "ИКС 222",
-    "registration_date": "2026-05-05T15:28:55+03:00"
+    "registration_date": "2026-05-05T15:28:55+03:00",
+    "daily_update": false
   },
   "173390202": {
     "first_name": "Телеграмм лучше",
     "last_name": "",
-    "group_name": "РЗ 252",
-    "registration_date": "2026-05-24T21:49:17+03:00"
+    "group_name": "ИП246",
+    "registration_date": "2026-05-26T12:04:38+03:00",
+    "daily_update": false
   }
 }
