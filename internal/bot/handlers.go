@@ -170,7 +170,8 @@ func (h *Handler) handleMessage(u *schemes.MessageCreatedUpdate) {
 			case "awaiting_broadcast":
 				h.handleBroadcastMessage(chatID, userID, text)
 			default:
-				// игнорируем
+				text, _ := h.renderer.Render("unknown_command", nil)
+				h.reply(chatID, text)
 			}
 			return
 		}
