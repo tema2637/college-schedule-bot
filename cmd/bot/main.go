@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -19,107 +18,84 @@ import (
 	"college-schedule-bot/internal/webhook"
 )
 
-// Основная точка входа в приложение бота
 func main() {
-	log.Println("Zapusk kolledzh-bota...")
+	log.Println("College Schedule Bot — optimized")
 
-	// Переходим в директорию с бинарником (чтобы файлы искались относительно него)
-	exe, err := os.Executable()
-	if err == nil {
-		exeDir := filepath.Dir(exe)
-		if err := os.Chdir(exeDir); err != nil {
-			log.Printf("[MAIN] не удалось сменить директорию на %s: %v", exeDir, err)
-		} else {
-			log.Printf("[MAIN] рабочая директория: %s", exeDir)
-		}
-	}
-
-	// Загрузка конфигурации
-	cfg, err := config.Load("config.json")
+	// Конфиг из env + константы
+	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Oshibka zagruzki konfiguryatsii: %v", err)
+		log.Fatalf("Config error: %v", err)
 	}
 
-	// Инициализация хранилища данных
-	storageManager, err := storage.NewManager(cfg.Files)
+	// Хранилище (schedule.json, users.json)
+	storageManager, err := storage.NewManager(
+		config.SchedulePath,
+		config.UsersPath,
+	)
 	if err != nil {
-		log.Fatalf("Oshibka initsializatsii khranilishcha: %v", err)
+		log.Fatalf("Storage init error: %v", err)
 	}
 
-	// Инициализация движка планировщика
-	scheduleEngine := scheduler.NewEngine(cfg.SemesterStartDate)
+	// Планировщик
+	scheduleEngine := scheduler.NewEngine(config.SemesterStartDate)
 
-	// Инициализация шаблонизатора
-	templateRenderer := templates.NewRenderer(cfg.Files.Messages)
+	// Рендерер (захардкожен, без файла)
+	templateRenderer := templates.NewRenderer()
 
-	// Инициализация Python-обёртки для конвертеров
-	pyRunner := tools.NewPythonRunner(cfg.ToolsDir, ".")
+	// Python-обёртка (опционально, для конвертации xlsx)
+	pyRunner := tools.NewPythonRunner(config.ToolsDir, ".")
 
-	// Инициализация клиента Max Bot API
+	// Клиент Max Bot API
 	api, err := maxbot.New(cfg.APIToken)
 	if err != nil {
-		log.Fatalf("Ошибка создания клиента Max Bot API: %v", err)
+		log.Fatalf("Max API client error: %v", err)
 	}
 
-	// Создание обработчика бота
+	// Обработчик бота
 	botHandler := bot.NewHandler(api, storageManager, scheduleEngine, templateRenderer, cfg, pyRunner)
 
-	// Настройка graceful shutdown
+	// Graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Запуск бота в отдельной горутине
 	go func() {
-		log.Println("Бот успешно запущен и готов к работе")
+		log.Println("Bot started and ready")
 		botHandler.Start(ctx)
 	}()
 
-	// --- WEBHOOK MODE ---
-	if cfg.WebhookURL != "" {
-		log.Printf("[MAIN] Режим webhook: %s", cfg.WebhookURL)
+	// Webhook: URL из env (устанавливается entrypoint.sh) или long polling
+	webhookURL := os.Getenv("WEBHOOK_URL")
+	if webhookURL != "" {
+		log.Printf("[MAIN] Webhook mode: %s", webhookURL)
 
-		// Определяем адрес для监听
-		addr := cfg.WebhookPort
-		if addr == "" {
-			addr = ":8080"
+		webhookServer := webhook.NewServer(config.WebhookPort, botHandler.HandleUpdate)
+
+		if err := webhook.Subscribe(api, webhookURL, ""); err != nil {
+			log.Printf("[MAIN] Webhook registration warning: %v", err)
 		}
 
-		// Создаём webhook-сервер
-		webhookServer := webhook.NewServer(addr, botHandler.HandleUpdate)
-
-		// Регистрируем подписку в Max API
-		if err := webhook.Subscribe(api, cfg.WebhookURL, cfg.WebhookFilter); err != nil {
-			log.Printf("[MAIN] Предупреждение: не удалось зарегистрировать webhook: %v", err)
-		}
-
-		// Запускаем сервер
-		if err := webhookServer.Start(ctx); err != nil {
-			log.Fatalf("[MAIN] Ошибка webhook-сервера: %v", err)
-		}
+		go func() {
+			if err := webhookServer.Start(ctx); err != nil {
+				log.Fatalf("[MAIN] Webhook server error: %v", err)
+			}
+		}()
 	} else {
-		log.Println("[MAIN] Режим long polling (устаревает 11.05.2026)")
+		log.Println("[MAIN] Long polling mode")
 	}
 
-	// Ожидание сигнала завершения
 	<-ctx.Done()
+	log.Println("Shutting down...")
 
-	log.Println("Получен сигнал завершения, начинаем graceful shutdown...")
-
-	// Создание контекста с таймаутом для завершения
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Остановка бота
 	if err := botHandler.Stop(shutdownCtx); err != nil {
-		log.Printf("Ошибка при остановке бота: %v", err)
-	} else {
-		log.Println("Бот успешно остановлен")
+		log.Printf("Stop error: %v", err)
 	}
 
-	// Сохранение данных
 	if err := storageManager.SaveAll(); err != nil {
-		log.Printf("Ошибка сохранения данных: %v", err)
+		log.Printf("Save error: %v", err)
 	}
 
-	log.Println("Graceful shutdown завершён")
+	log.Println("Shutdown complete")
 }

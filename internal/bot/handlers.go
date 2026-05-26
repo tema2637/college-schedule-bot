@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -22,8 +21,6 @@ import (
 	"college-schedule-bot/internal/templates"
 	"college-schedule-bot/internal/tools"
 )
-
-var msk = time.FixedZone("MSK", 3*60*60)
 
 type Handler struct {
 	api            *maxbot.Api
@@ -39,11 +36,6 @@ type Handler struct {
 	lastGroupPage  map[int64]int
 	lastActionTime map[int64]time.Time
 	lastWeekNav    map[int64]int
-	lastCorrMsgID  map[int64]string
-	// планировщик
-	reminded1630    bool
-	sentCorr1700    bool
-	schedulerDate   string
 }
 
 func NewHandler(
@@ -68,160 +60,21 @@ func NewHandler(
 		lastGroupPage:  make(map[int64]int),
 		lastActionTime: make(map[int64]time.Time),
 		lastWeekNav:    make(map[int64]int),
-		lastCorrMsgID:  make(map[int64]string),
 	}
-}
-
-// getStack возвращает стек вызовов для диагностики
-func getStack() string {
-	buf := make([]byte, 4096)
-	n := runtime.Stack(buf, false)
-	return string(buf[:n])
-}
-
-// crashLog логирует критическую ошибку и завершает процесс для перезапуска
-func crashLog(format string, args ...interface{}) {
-	msg := fmt.Sprintf("💥 КРИТИЧЕСКАЯ ОШИБКА: "+format, args...)
-	stack := getStack()
-
-	// Пишем в stdout
-	log.Println("═══════════════════════════════════════════")
-	log.Println(msg)
-	log.Println(stack)
-	log.Println("═══════════════════════════════════════════")
-	log.Println("🔄 Бот будет перезапущен через 5 секунд...")
-
-	// Пишем в файл panic.log в рабочей директории
-	now := time.Now().In(msk).Format("2006-01-02 15:04:05")
-	report := fmt.Sprintf("═══════════════════════════════════════════\n"+
-		"⏰ Время: %s\n%s\n%s\n"+
-		"═══════════════════════════════════════════\n",
-		now, msg, stack)
-
-	f, err := os.OpenFile("panic.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err == nil {
-		f.WriteString(report)
-		f.Close()
-		log.Printf("[PANIC] лог сохранён в panic.log")
-	} else {
-		log.Printf("[PANIC] не удалось записать panic.log: %v", err)
-	}
-
-	time.Sleep(5 * time.Second)
-	os.Exit(1)
 }
 
 func (h *Handler) Start(ctx context.Context) {
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				crashLog("канал ошибок API: %v", r)
-			}
-		}()
 		for err := range h.api.GetErrors() {
 			log.Printf("[API ERROR] %v", err)
-			if err != nil {
-				crashLog("неисправимая ошибка API: %v", err)
-			}
 		}
 	}()
-	go h.schedulerLoop(ctx)
 	upd := h.api.GetUpdates(ctx)
 	log.Println("[BOT] Бот запущен, ожидаю обновления...")
 	for u := range upd {
 		go h.handleUpdate(u)
 	}
 	log.Println("[BOT] Канал обновлений закрыт")
-	crashLog("канал обновлений неожиданно закрыт")
-}
-
-func (h *Handler) schedulerLoop(ctx context.Context) {
-	defer func() {
-		if r := recover(); r != nil {
-			crashLog("планировщик: %v", r)
-		}
-	}()
-
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			h.checkScheduledTasks()
-		}
-	}
-}
-
-func (h *Handler) checkScheduledTasks() {
-	now := time.Now().In(msk)
-	today := now.Format("2006-01-02")
-
-	// Сброс флагов при смене дня
-	if h.schedulerDate != today {
-		h.reminded1630 = false
-		h.sentCorr1700 = false
-		h.schedulerDate = today
-	}
-
-	currentMin := now.Hour()*60 + now.Minute()
-
-	// 16:30 — напомнить админам
-	if currentMin == 16*60+30 && !h.reminded1630 {
-		h.reminded1630 = true
-		admins := h.storage.GetAdmins()
-		for _, id := range admins.SuperAdmins {
-			h.sendToUser(id, "⏰ *Напоминание:* пора прислать файл с корректировками!")
-		}
-		for _, id := range admins.Admins {
-			h.sendToUser(id, "⏰ *Напоминание:* пора прислать файл с корректировками!")
-		}
-		log.Printf("[SCHEDULER] напоминание админам в 16:30")
-	}
-
-	// 17:00 — разослать корректировки всем пользователям
-	if currentMin == 17*60 && !h.sentCorr1700 {
-		h.sentCorr1700 = true
-		h.broadcastCorrections()
-		log.Printf("[SCHEDULER] рассылка корректировок в 17:00")
-	}
-}
-
-func (h *Handler) broadcastCorrections() {
-	users := h.storage.GetAllUsers()
-	if len(users) == 0 {
-		return
-	}
-
-	sent, failed := 0, 0
-	sentByGroup := make(map[string]int)
-
-	for uid, u := range users {
-		text := h.buildChangesForGroup(uid, u.GroupName)
-		if text == "" {
-			text = fmt.Sprintf("📭 Для группы *%s* изменений нет", u.GroupName)
-		}
-		if err := h.sendToUser(uid, text); err != nil {
-			log.Printf("[SCHEDULER] ошибка отправки user=%d: %v", uid, err)
-			failed++
-		} else {
-			sent++
-			sentByGroup[normalizeGroupName(u.GroupName)]++
-		}
-		time.Sleep(100 * time.Millisecond) // небольшая пауза между отправками
-	}
-
-	// Уведомление админам
-	admins := h.storage.GetAdmins()
-	summary := fmt.Sprintf("📊 *Рассылка корректировок выполнена*\n\nОтправлено: %d\nОшибок: %d", sent, failed)
-	for _, id := range admins.SuperAdmins {
-		h.sendToUser(id, summary)
-	}
-	for _, id := range admins.Admins {
-		h.sendToUser(id, summary)
-	}
 }
 
 func (h *Handler) Stop(ctx context.Context) error { return nil }
@@ -234,23 +87,32 @@ func (h *Handler) HandleUpdate(update schemes.UpdateInterface) {
 func (h *Handler) handleUpdate(update schemes.UpdateInterface) {
 	defer func() {
 		if r := recover(); r != nil {
-			crashLog("обработка обновления: %v\nстек: %s", r, getStack())
+			log.Printf("[PANIC] %v", r)
 		}
 	}()
 
-	// Анти-спам — игнорируем слишком частые действия
+	// Анти-спам защита
 	userID := extractUserID(update)
 	if userID != 0 {
 		if lastTime, ok := h.lastActionTime[userID]; ok {
 			if time.Since(lastTime) < 500*time.Millisecond {
+				// Удаляем спам-сообщение если это текст
+				if u, ok := update.(*schemes.MessageCreatedUpdate); ok {
+					h.api.Messages.DeleteMessage(context.Background(), u.Message.Body.Mid)
+				}
 				return
 			}
 		}
 		h.lastActionTime[userID] = time.Now()
 	}
 
+	// Искусственная задержка
+	time.Sleep(300 * time.Millisecond)
+
 	switch u := update.(type) {
 	case *schemes.MessageCreatedUpdate:
+		// Удаляем сообщение пользователя
+		h.api.Messages.DeleteMessage(context.Background(), u.Message.Body.Mid)
 		h.handleMessage(u)
 	case *schemes.MessageCallbackUpdate:
 		h.handleCallback(u)
@@ -306,24 +168,6 @@ func (h *Handler) handleMessage(u *schemes.MessageCreatedUpdate) {
 		h.handleUpdateAll(chatID, userID)
 	case "/change_group", "/сменить":
 		h.handleChangeGroup(chatID, userID)
-	case "/настройки", "/settings":
-		h.handleSettings(chatID, userID)
-	case "/корректировка", "/changes":
-		h.handleUserChanges(chatID, userID)
-	case "/myid", "/мойид":
-		h.handleMyID(chatID, userID)
-	case "/togglemyid", "/myidtoggle":
-		h.handleToggleMyID(chatID, userID)
-	case "/ahelp", "/админ":
-		h.handleAdminHelp(chatID, userID)
-	case "/addadmin", "/добавитьадмина":
-		h.handleAddAdmin(chatID, userID, text)
-	case "/addsuperadmin", "/добавитьсупера":
-		h.handleAddSuperAdmin(chatID, userID, text)
-	case "/removeadmin", "/удалитьадмина":
-		h.handleRemoveAdmin(chatID, userID, text)
-	case "/admins", "/админы":
-		h.handleListAdmins(chatID, userID)
 	default:
 		// Удаляем старое "неизвестное" или любое другое сервисное сообщение перед отправкой нового
 		if msgID, ok := h.lastMsgID[userID]; ok {
@@ -335,8 +179,7 @@ func (h *Handler) handleMessage(u *schemes.MessageCreatedUpdate) {
 			case "awaiting_broadcast":
 				h.handleBroadcastMessage(chatID, userID, text)
 			default:
-				text, _ := h.renderer.Render("unknown_command", nil)
-				h.reply(chatID, text)
+				// игнорируем
 			}
 			return
 		}
@@ -528,23 +371,6 @@ func (h *Handler) showScheduleForDay(chatID int64, userID int64, dayOfWeek int, 
 			}
 		}
 	}
-
-	// Если включена авто-корректировка, отправляем изменения
-	if user, exists := h.storage.GetUser(userID); exists && user.DailyUpdate {
-		// Удаляем предыдущее сообщение с корректировками
-		if oldCorrID, ok := h.lastCorrMsgID[userID]; ok {
-			h.api.Messages.DeleteMessage(context.Background(), oldCorrID)
-			delete(h.lastCorrMsgID, userID)
-		}
-		// Отправляем свежие корректировки
-		corrText := h.buildChangesForGroup(userID, user.GroupName)
-		if corrText != "" {
-			msg, err := h.sendMessage(chatID, corrText)
-			if err == nil && msg != nil {
-				h.lastCorrMsgID[userID] = msg.Body.Mid
-			}
-		}
-	}
 }
 
 // handleCallback обрабатывает inline-кнопки
@@ -603,32 +429,6 @@ func (h *Handler) handleCallback(u *schemes.MessageCallbackUpdate) {
 		h.showScheduleForWeek(chatID, userID, h.engine.GetCurrentWeek()+1, false)
 	case data == "week_current":
 		h.showScheduleForWeek(chatID, userID, h.engine.GetCurrentWeek(), false)
-
-	// Настройки
-	case data == "settings_change_group":
-		groups := ExtractGroupsFromSchedule(h.storage.GetSchedule())
-		text, _ := h.renderer.Render("select_group", nil)
-		msg, _ := h.sendMessageWithInlineKeyboard(chatID, text, BuildGroupKeyboard(groups, 0))
-		h.lastMsgID[userID] = msg.Body.Mid
-	case data == "settings_toggle_corr":
-		user, ok := h.storage.GetUser(userID)
-		if !ok {
-			log.Printf("[SETTINGS] пользователь %d не найден", userID)
-			return
-		}
-		newVal := !user.DailyUpdate
-		log.Printf("[SETTINGS] user=%d daily_update: %t → %t", userID, user.DailyUpdate, newVal)
-		if err := h.storage.SetDailyUpdate(userID, newVal); err != nil {
-			log.Printf("[SETTINGS] ошибка сохранения: %v", err)
-			return
-		}
-		// Обновляем сообщение с настройками
-		text := "⚙️ *Настройки*\n\nВыберите действие:"
-		msg, _ := h.sendMessageWithInlineKeyboard(chatID, text, BuildSettingsKeyboard(newVal))
-		if oldID, ok := h.lastMsgID[userID]; ok {
-			h.api.Messages.DeleteMessage(context.Background(), oldID)
-		}
-		h.lastMsgID[userID] = msg.Body.Mid
 	}
 
 	_, err := h.api.Messages.AnswerOnCallback(context.Background(), u.Callback.CallbackID, &schemes.CallbackAnswer{
@@ -803,20 +603,6 @@ func (h *Handler) handleCurrentWeek(chatID int64) {
 	h.reply(chatID, text)
 }
 
-func (h *Handler) handleSettings(chatID int64, userID int64) {
-	user, ok := h.storage.GetUser(userID)
-	if !ok {
-		h.handleStart(chatID, userID)
-		return
-	}
-	text := "⚙️ *Настройки*\n\nВыберите действие:"
-	msg, _ := h.sendMessageWithInlineKeyboard(chatID, text, BuildSettingsKeyboard(user.DailyUpdate))
-	if oldID, ok := h.lastMsgID[userID]; ok {
-		h.api.Messages.DeleteMessage(context.Background(), oldID)
-	}
-	h.lastMsgID[userID] = msg.Body.Mid
-}
-
 func (h *Handler) handleChangeGroup(chatID int64, userID int64) {
 	// Удаляем старое расписание, чтобы не мусорить
 	if msgID, ok := h.lastMsgID[userID]; ok {
@@ -840,7 +626,7 @@ func (h *Handler) handleChangeGroup(chatID int64, userID int64) {
 }
 
 func (h *Handler) handleBroadcastCommand(chatID int64, userID int64) {
-	if !h.storage.IsAdmin(userID) {
+	if !h.config.IsAdmin(userID) {
 		text, _ := h.renderer.Render("no_rights", nil)
 		h.reply(chatID, text)
 		log.Printf("[BROADCAST] отказано userID=%d, chatID=%d (не админ)", userID, chatID)
@@ -860,7 +646,7 @@ func (h *Handler) handleBroadcastCommand(chatID int64, userID int64) {
 }
 
 func (h *Handler) handleBroadcastMessage(chatID int64, userID int64, text string) {
-	if !h.storage.IsAdmin(userID) {
+	if !h.config.IsAdmin(userID) {
 		text, _ := h.renderer.Render("no_rights", nil)
 		h.reply(chatID, text)
 		return
@@ -886,7 +672,7 @@ func (h *Handler) handleBroadcastMessage(chatID int64, userID int64, text string
 }
 
 func (h *Handler) handleBroadcastConfirm(chatID int64, userID int64) {
-	if !h.storage.IsAdmin(userID) {
+	if !h.config.IsAdmin(userID) {
 		return
 	}
 	text, ok := h.broadcast[userID]
@@ -922,7 +708,7 @@ func (h *Handler) handleBroadcastConfirm(chatID int64, userID int64) {
 }
 
 func (h *Handler) IsAdmin(userID int64) bool {
-	return h.storage.IsAdmin(userID)
+	return h.config.IsAdmin(userID)
 }
 
 
@@ -942,7 +728,7 @@ type ChangeEntry struct {
 }
 
 func (h *Handler) handleParseXlsx(chatID int64, userID int64) {
-	if !h.storage.IsAdmin(userID) {
+	if !h.config.IsAdmin(userID) {
 		text, _ := h.renderer.Render("no_rights", nil)
 		h.reply(chatID, text)
 		return
@@ -1134,14 +920,13 @@ func capitalize(s string) string {
 	if s == "" {
 		return ""
 	}
-	runes := []rune(s)
-	return strings.ToUpper(string(runes[:1])) + string(runes[1:])
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // ======== ПОЛНОЕ ОБНОВЛЕНИЕ (РАСПИСАНИЕ + КОРРЕКТИРОВКИ) ========
 
 func (h *Handler) handleUpdateAll(chatID int64, userID int64) {
-	if !h.storage.IsAdmin(userID) {
+	if !h.config.IsAdmin(userID) {
 		text, _ := h.renderer.Render("no_rights", nil)
 		h.reply(chatID, text)
 		return
@@ -1150,7 +935,7 @@ func (h *Handler) handleUpdateAll(chatID int64, userID int64) {
 	report, err := h.pyRunner.FullPipeline(
 		"расписание.xlsx",           // входной xlsx (автопоиск расписание/.xlsx/.xls)
 		"Расписание-2.csv",          // промежуточный CSV
-		h.config.Files.Schedule,      // schedule.json
+		config.SchedulePath,           // schedule.json (хардкод)
 		"changes.json",              // changes.json
 	)
 	if err != nil {
@@ -1170,7 +955,7 @@ func (h *Handler) handleUpdateAll(chatID int64, userID int64) {
 
 // handleFileAttachment — загрузка xlsx-файла и сохранение как расписание.xlsx
 func (h *Handler) handleFileAttachment(chatID int64, userID int64, rawAttachments []json.RawMessage) {
-	if !h.storage.IsAdmin(userID) {
+	if !h.config.IsAdmin(userID) {
 		return
 	}
 
@@ -1211,314 +996,8 @@ func (h *Handler) handleFileAttachment(chatID int64, userID int64, rawAttachment
 
 		log.Printf("[FILE] сохранён: %s", outPath)
 		h.reply(chatID, fmt.Sprintf("✅ Файл сохранён как расписание.xlsx\n\nМожешь запустить /замены для рассылки."))
-
-		// Уведомляем всех админов о загрузке
-		admins := h.storage.GetAdmins()
-		notify := fmt.Sprintf("📁 *Загружен новый файл корректировок*\n\nРасписание будет обновлено в 17:00.\nЕсли хочешь запустить сейчас — используй /замены")
-		for _, id := range admins.SuperAdmins {
-			if id != userID {
-				h.sendToUser(id, notify)
-			}
-		}
-		for _, id := range admins.Admins {
-			if id != userID {
-				h.sendToUser(id, notify)
-			}
-		}
-
 		return
 	}
-}
-
-// ======== /myid ========
-
-func (h *Handler) handleMyID(chatID int64, userID int64) {
-	if !h.storage.IsMyIDEnabled() {
-		return
-	}
-	h.reply(chatID, fmt.Sprintf("🆔 Твой ID: `%d`", userID))
-}
-
-func (h *Handler) handleToggleMyID(chatID int64, userID int64) {
-	if !h.storage.IsSuperAdmin(userID) {
-		h.reply(chatID, "⛔ Только super_admin")
-		return
-	}
-	enabled, err := h.storage.ToggleMyID()
-	if err != nil {
-		h.reply(chatID, fmt.Sprintf("❌ Ошибка: %v", err))
-		return
-	}
-	status := "включена"
-	if !enabled {
-		status = "выключена"
-	}
-	h.reply(chatID, fmt.Sprintf("✅ Команда /myid теперь %s", status))
-}
-
-func (h *Handler) handleAdminHelp(chatID int64, userID int64) {
-	if !h.storage.IsAdmin(userID) && !h.storage.IsSuperAdmin(userID) {
-		return
-	}
-
-	role := "🔧 Admin"
-	if h.storage.IsSuperAdmin(userID) {
-		role = "👑 Super Admin"
-	}
-
-	myidStatus := "включена"
-	if !h.storage.IsMyIDEnabled() {
-		myidStatus = "выключена"
-	}
-
-	text := fmt.Sprintf(`📋 *Admin Panel*
-
-👤 Роль: %s
-📌 /myid: %s
-
-🔧 *Команды админа:*
-• /рассылка (/broadcast) — рассылка всем
-• /замены (/parse_xlsx) — парсинг xlsx
-• /обновить (/update) — обновление расписания
-• /админ (/ahelp) — эта справка`, role, myidStatus)
-
-	if h.storage.IsSuperAdmin(userID) {
-		text += `
-
-👑 *Super Admin:*
-• /добавитьадмина <id> (/addadmin)
-• /добавитьсупера <id> (/addsuperadmin)
-• /удалитьадмина <id> (/removeadmin)
-• /админы (/admins) — список ролей
-• /myidtoggle (/togglemyid) — вкл/выкл /myid`
-	}
-
-	h.reply(chatID, text)
-}
-
-// ======== УПРАВЛЕНИЕ РОЛЯМИ (super_admin) ========
-
-func (h *Handler) handleAddAdmin(chatID int64, userID int64, text string) {
-	if !h.storage.IsSuperAdmin(userID) {
-		h.reply(chatID, "⛔ Только super_admin может добавлять админов")
-		return
-	}
-	parts := strings.Fields(text)
-	if len(parts) < 2 {
-		h.reply(chatID, "Использование: /addadmin <user_id>")
-		return
-	}
-	targetID := parseInt(parts[1])
-	if targetID == 0 {
-		h.reply(chatID, "❌ Неверный ID")
-		return
-	}
-	if err := h.storage.AddAdmin(targetID); err != nil {
-		h.reply(chatID, fmt.Sprintf("❌ Ошибка: %v", err))
-		return
-	}
-	h.reply(chatID, fmt.Sprintf("✅ Пользователь %d добавлен в admin", targetID))
-}
-
-func (h *Handler) handleAddSuperAdmin(chatID int64, userID int64, text string) {
-	if !h.storage.IsSuperAdmin(userID) {
-		h.reply(chatID, "⛔ Только super_admin может добавлять super_admin")
-		return
-	}
-	parts := strings.Fields(text)
-	if len(parts) < 2 {
-		h.reply(chatID, "Использование: /addsuperadmin <user_id>")
-		return
-	}
-	targetID := parseInt(parts[1])
-	if targetID == 0 {
-		h.reply(chatID, "❌ Неверный ID")
-		return
-	}
-	if err := h.storage.AddSuperAdmin(targetID); err != nil {
-		h.reply(chatID, fmt.Sprintf("❌ Ошибка: %v", err))
-		return
-	}
-	h.reply(chatID, fmt.Sprintf("✅ Пользователь %d добавлен в super_admin", targetID))
-}
-
-func (h *Handler) handleRemoveAdmin(chatID int64, userID int64, text string) {
-	if !h.storage.IsSuperAdmin(userID) {
-		h.reply(chatID, "⛔ Только super_admin может удалять роли")
-		return
-	}
-	parts := strings.Fields(text)
-	if len(parts) < 2 {
-		h.reply(chatID, "Использование: /removeadmin <user_id>")
-		return
-	}
-	targetID := parseInt(parts[1])
-	if targetID == 0 {
-		h.reply(chatID, "❌ Неверный ID")
-		return
-	}
-	if err := h.storage.RemoveAdmin(targetID); err != nil {
-		h.reply(chatID, fmt.Sprintf("❌ Ошибка: %v", err))
-		return
-	}
-	h.reply(chatID, fmt.Sprintf("✅ Пользователь %d удалён из всех ролей", targetID))
-}
-
-func (h *Handler) handleListAdmins(chatID int64, userID int64) {
-	if !h.storage.IsSuperAdmin(userID) {
-		h.reply(chatID, "⛔ Только super_admin может просматривать админов")
-		return
-	}
-	admins := h.storage.GetAdmins()
-	reply := "📋 Текущие роли:\n\n"
-	reply += "👑 *Super Admin:*\n"
-	if len(admins.SuperAdmins) == 0 {
-		reply += "  нет\n"
-	} else {
-		for _, id := range admins.SuperAdmins {
-			reply += fmt.Sprintf("  • `%d`\n", id)
-		}
-	}
-	reply += "\n🔧 *Admin:*\n"
-	if len(admins.Admins) == 0 {
-		reply += "  нет\n"
-	} else {
-		for _, id := range admins.Admins {
-			reply += fmt.Sprintf("  • `%d`\n", id)
-		}
-	}
-	h.reply(chatID, reply)
-}
-
-// ======== /корректировка — изменения для своей группы ========
-
-// buildChangesForGroup возвращает текст изменений для группы (пусто если нет)
-func (h *Handler) buildChangesForGroup(userID int64, groupName string) string {
-	data, err := os.ReadFile("changes.json")
-	if err != nil {
-		log.Printf("[CHANGES] файл не найден user=%d: %v", userID, err)
-		return ""
-	}
-
-	var allChanges []ChangeEntry
-	if err := json.Unmarshal(data, &allChanges); err != nil {
-		log.Printf("[CHANGES] ошибка парсинга для user=%d: %v", userID, err)
-		return ""
-	}
-
-	if len(allChanges) == 0 {
-		log.Printf("[CHANGES] пустой файл для user=%d", userID)
-		return ""
-	}
-
-	userGroup := normalizeGroupName(groupName)
-	var myChanges []ChangeEntry
-	for _, ch := range allChanges {
-		if normalizeGroupName(ch.Group) == userGroup {
-			myChanges = append(myChanges, ch)
-		}
-	}
-
-	if len(myChanges) == 0 {
-		return ""
-	}
-
-	type dayInfo struct {
-		date    string
-		dayName string
-		entries []ChangeEntry
-	}
-	dayMap := make(map[string]*dayInfo)
-	var dayKeys []string
-	for _, ch := range myChanges {
-		if dayMap[ch.Date] == nil {
-			dayMap[ch.Date] = &dayInfo{date: ch.Date, dayName: ch.DayOfWeek}
-			dayKeys = append(dayKeys, ch.Date)
-		}
-		dayMap[ch.Date].entries = append(dayMap[ch.Date].entries, ch)
-	}
-
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("📋 *Изменения для %s*\n\n", groupName))
-
-	for _, date := range dayKeys {
-		di := dayMap[date]
-		changes := di.entries
-
-		sort.Slice(changes, func(i, j int) bool {
-			a := changes[i].LessonNumber
-			b := changes[j].LessonNumber
-			if a == nil {
-				return false
-			}
-			if b == nil {
-				return true
-			}
-			return *a < *b
-		})
-
-		head := date
-		if di.dayName != "" {
-			head += " (" + capitalize(di.dayName) + ")"
-		}
-		sb.WriteString(fmt.Sprintf("%s\n", head))
-
-		for _, ch := range changes {
-			ln := ""
-			if ch.LessonNumber != nil {
-				ln = fmt.Sprintf(" %d п.", *ch.LessonNumber)
-			}
-
-			switch ch.Type {
-			case "removed":
-				subj := ch.Subject
-				if ch.Teacher != "" {
-					subj += fmt.Sprintf(" (%s)", ch.Teacher)
-				}
-				if ch.Note == "снять" || ch.Note == "Снять" {
-					sb.WriteString(fmt.Sprintf("❌ Снято: %s%s\n", subj, ln))
-				} else {
-					sb.WriteString(fmt.Sprintf("❌ Отменено: %s%s\n", subj, ln))
-				}
-			case "added":
-				subj := ch.Subject
-				if ch.Teacher != "" {
-					sb.WriteString(fmt.Sprintf("➕ Добавлено: %s%s\n", subj, ln))
-					sb.WriteString(fmt.Sprintf("   Преподаватель: %s\n", ch.Teacher))
-				} else {
-					sb.WriteString(fmt.Sprintf("➕ Добавлено: %s%s\n", subj, ln))
-				}
-			case "status_change":
-				sb.WriteString(fmt.Sprintf("ℹ️ %s\n", ch.Subject))
-			}
-		}
-		sb.WriteString("\n")
-	}
-
-	return sb.String()
-}
-
-func (h *Handler) handleUserChanges(chatID int64, userID int64) {
-	user, exists := h.storage.GetUser(userID)
-	if !exists {
-		h.handleStart(chatID, userID)
-		return
-	}
-
-	text := h.buildChangesForGroup(userID, user.GroupName)
-	if text == "" {
-		h.reply(chatID, "📭 Для твоей группы изменений нет")
-		return
-	}
-
-	h.reply(chatID, text)
-}
-
-// parseInt парсит строку в int64
-func parseInt(s string) int64 {
-	var id int64
-	fmt.Sscanf(s, "%d", &id)
-	return id
 }
 
 // downloadFile скачивает файл по URL и сохраняет локально
@@ -1548,74 +1027,33 @@ func (h *Handler) downloadFile(url, outPath string) error {
 
 // reply — отправляет простое текстовое сообщение
 func (h *Handler) reply(chatID int64, text string) {
-	msg, err := h.sendMessage(chatID, text)
-	if err != nil {
-		log.Printf("[REPLY] ошибка chat=%d: %v", chatID, err)
-		return
-	}
-	if msg == nil || msg.Body.Mid == "" {
-		log.Printf("[REPLY] пустой ответ chat=%d", chatID)
+	if _, err := h.sendMessage(chatID, text); err != nil {
+		log.Printf("[SEND ERROR] %v", err)
 	}
 }
 
 // sendMessage — отправка текста
-// sendMessageSafe отправляет сообщение и логирует ошибки
-func (h *Handler) sendMessageSafe(chatID int64, text string) *schemes.Message {
-	m := maxbot.NewMessage().SetChat(chatID).SetText(text).SetFormat(schemes.Markdown)
-	msg, err := h.api.Messages.SendWithResult(context.Background(), m)
-	if err != nil {
-		log.Printf("[SEND] ошибка отправки chat=%d: %v", chatID, err)
-		return nil
-	}
-	if msg == nil || msg.Body.Mid == "" {
-		log.Printf("[SEND] пустой ответ на отправку chat=%d", chatID)
-		return nil
-	}
-	return msg
-}
-
 func (h *Handler) sendMessage(chatID int64, text string) (*schemes.Message, error) {
-	m := maxbot.NewMessage().SetChat(chatID).SetText(text).SetFormat(schemes.Markdown)
-	msg, err := h.api.Messages.SendWithResult(context.Background(), m)
-	if err != nil {
-		log.Printf("[SEND] ошибка: %v", err)
-	}
-	return msg, err
+	m := maxbot.NewMessage().SetChat(chatID).SetText(text)
+	return h.api.Messages.SendWithResult(context.Background(), m)
 }
 
 // sendToUser — отправка по user_id
 func (h *Handler) sendToUser(userID int64, text string) error {
-	m := maxbot.NewMessage().SetUser(userID).SetText(text).SetFormat(schemes.Markdown)
-	err := h.api.Messages.Send(context.Background(), m)
-	if err != nil {
-		log.Printf("[SEND] ошибка отправки user=%d: %v", userID, err)
-	}
-	return err
+	m := maxbot.NewMessage().SetUser(userID).SetText(text)
+	return h.api.Messages.Send(context.Background(), m)
 }
 
 // sendMessageWithInlineKeyboard — отправка с inline-клавиатурой
 func (h *Handler) sendMessageWithInlineKeyboard(chatID int64, text string, keyboard *maxbot.Keyboard) (*schemes.Message, error) {
-	m := maxbot.NewMessage().SetChat(chatID).SetText(text).SetFormat(schemes.Markdown).AddKeyboard(keyboard)
-	msg, err := h.api.Messages.SendWithResult(context.Background(), m)
-	if err != nil {
-		log.Printf("[SEND] ошибка отправки (inline) chat=%d: %v", chatID, err)
-		return msg, err
-	}
-	if msg == nil || msg.Body.Mid == "" {
-		log.Printf("[SEND] пустой ответ (inline) chat=%d", chatID)
-		return nil, fmt.Errorf("пустой ответ")
-	}
-	return msg, nil
+	m := maxbot.NewMessage().SetChat(chatID).SetText(text).AddKeyboard(keyboard)
+	return h.api.Messages.SendWithResult(context.Background(), m)
 }
 
 // editMessage — редактирование существующего сообщения
 func (h *Handler) editMessage(chatID int64, messageID string, text string, keyboard *maxbot.Keyboard) error {
-	m := maxbot.NewMessage().SetChat(chatID).SetText(text).SetFormat(schemes.Markdown).AddKeyboard(keyboard)
-	err := h.api.Messages.EditMessage(context.Background(), messageID, m)
-	if err != nil {
-		log.Printf("[EDIT] ошибка редактирования msg=%s: %v", messageID, err)
-	}
-	return err
+	m := maxbot.NewMessage().SetChat(chatID).SetText(text).AddKeyboard(keyboard)
+	return h.api.Messages.EditMessage(context.Background(), messageID, m)
 }
 
 func extractUserID(update schemes.UpdateInterface) int64 {
