@@ -1,0 +1,542 @@
+[
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИП252",
+    "lesson_number": 1,
+    "type": "removed",
+    "subject": "Проект.деят.",
+    "teacher": "Сапрыкина А.А.",
+    "note": "Замена"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИП252",
+    "lesson_number": 1,
+    "type": "added",
+    "subject": "Ин.язык(1и2)",
+    "teacher": "Степаненко/Кривцова",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИП252",
+    "lesson_number": 5,
+    "type": "removed",
+    "subject": "Проект.деят.",
+    "teacher": "Сапрыкина А.А.",
+    "note": ""
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИБ253",
+    "lesson_number": 4,
+    "type": "removed",
+    "subject": "ОБП и ЗР",
+    "teacher": "Абатуров С.А.",
+    "note": "Замена"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИБ253",
+    "lesson_number": 4,
+    "type": "added",
+    "subject": "История",
+    "teacher": "Петренко В.Б.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИП255",
+    "lesson_number": 2,
+    "type": "removed",
+    "subject": "Проект.деят.",
+    "teacher": "Сапрыкина А.А.",
+    "note": "Замена"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИП255",
+    "lesson_number": 2,
+    "type": "added",
+    "subject": "Ин.язык(1и2)",
+    "teacher": "Сорокина/Рахимова",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС254",
+    "lesson_number": 1,
+    "type": "removed",
+    "subject": "Ин.язык",
+    "teacher": "Кривцова С.Н.",
+    "note": "снять"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС254",
+    "lesson_number": 5,
+    "type": "removed",
+    "subject": "Проект.деят.",
+    "teacher": "Минаева Т.В.",
+    "note": "снять"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС251",
+    "lesson_number": 1,
+    "type": "removed",
+    "subject": "МДК.01.02.",
+    "teacher": "Буслова Н.И.",
+    "note": "Замена"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС251",
+    "lesson_number": 1,
+    "type": "added",
+    "subject": "МДК.04.02.",
+    "teacher": "Павлихина Е.В.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС251",
+    "lesson_number": 2,
+    "type": "added",
+    "subject": "МДК.04.02.",
+    "teacher": "Павлихина Е.В.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС251",
+    "lesson_number": 3,
+    "type": "removed",
+    "subject": "Ин.язык(1и2)",
+    "teacher": "Сорокина/Степаненко",
+    "note": "Замена"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС251",
+    "lesson_number": 3,
+    "type": "added",
+    "subject": "Электрорад.",
+    "teacher": "Самойленко Д.В.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС251",
+    "lesson_number": 5,
+    "type": "added",
+    "subject": "БТПБД",
+    "teacher": "Михайленко Т.В.",
+    "note": "вм.2 п.сам/р."
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "РЗ252",
+    "lesson_number": 1,
+    "type": "removed",
+    "subject": "ОБП и ЗР",
+    "teacher": "Абатуров С.А.",
+    "note": "Замена"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "РЗ252",
+    "lesson_number": 1,
+    "type": "added",
+    "subject": "Математика",
+    "teacher": "Иванова О.В.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИП242",
+    "lesson_number": 1,
+    "type": "added",
+    "subject": "История",
+    "teacher": "Петренко В.Б.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИП242",
+    "lesson_number": 2,
+    "type": "added",
+    "subject": "МДК.04.03.",
+    "teacher": "Габрилян С.А.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИП242",
+    "lesson_number": 4,
+    "type": "added",
+    "subject": "МДК.04.03.",
+    "teacher": "Габрилян С.А.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИП242",
+    "lesson_number": 5,
+    "type": "added",
+    "subject": "ОА и П",
+    "teacher": "Строганова Е.М.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИП242",
+    "lesson_number": 6,
+    "type": "added",
+    "subject": "МДК.04.01.",
+    "teacher": "Родионов В.И.",
+    "note": "вм.1 п.сам/р."
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИБ243",
+    "lesson_number": 1,
+    "type": "removed",
+    "subject": "Физ.культура",
+    "teacher": "Волков В.В.",
+    "note": "Замена"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИБ243",
+    "lesson_number": 1,
+    "type": "added",
+    "subject": "МДК.04.03.",
+    "teacher": "Габрилян С.А.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИБ243",
+    "lesson_number": 2,
+    "type": "removed",
+    "subject": "Ин.язык(1и2)",
+    "teacher": "Кривцова/Степаненко",
+    "note": "Замена"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИБ243",
+    "lesson_number": 2,
+    "type": "added",
+    "subject": "КС",
+    "teacher": "Москаленко М.А.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИБ243",
+    "lesson_number": 4,
+    "type": "added",
+    "subject": "МДК.04.01.",
+    "teacher": "Родионов В.И.",
+    "note": "сам/р."
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИВ244",
+    "lesson_number": 4,
+    "type": "added",
+    "subject": "Ин.язык(1и2)",
+    "teacher": "КривцоваСтепаненко",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИП245",
+    "lesson_number": null,
+    "type": "status_change",
+    "subject": "ЭКЗАМЕН",
+    "teacher": null,
+    "note": "ЭКЗАМЕН"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИП245",
+    "lesson_number": 2,
+    "type": "removed",
+    "subject": "МДК.04.02.",
+    "teacher": "Николаенко К.С.",
+    "note": ""
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИП245",
+    "lesson_number": 3,
+    "type": "removed",
+    "subject": "МДК.04.01.",
+    "teacher": "Родионов В.И.",
+    "note": ""
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИП246",
+    "lesson_number": null,
+    "type": "status_change",
+    "subject": "ЭКЗАМЕН",
+    "teacher": null,
+    "note": "ЭКЗАМЕН"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС242",
+    "lesson_number": 1,
+    "type": "added",
+    "subject": "БТПБД",
+    "teacher": "Михайленко Т.В.",
+    "note": "сам/р."
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС242",
+    "lesson_number": 2,
+    "type": "removed",
+    "subject": "МДК.01.02.",
+    "teacher": "Буслова Н.И.",
+    "note": "Замена"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС242",
+    "lesson_number": 2,
+    "type": "added",
+    "subject": "Электрорад.",
+    "teacher": "Самойленко Д.В.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "РЭУ242",
+    "lesson_number": 4,
+    "type": "added",
+    "subject": "ММРТПЗ",
+    "teacher": "Иванова О.В.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "РЭУ243",
+    "lesson_number": 2,
+    "type": "removed",
+    "subject": "БЖ",
+    "teacher": "Боброва О.В.",
+    "note": "Замена"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "РЭУ243",
+    "lesson_number": 2,
+    "type": "added",
+    "subject": "Измер.тех.",
+    "teacher": "Черкашин Г.А.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИБ233",
+    "lesson_number": 2,
+    "type": "added",
+    "subject": "СС и ТДВ",
+    "teacher": "Индык А.И.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИБ233",
+    "lesson_number": 4,
+    "type": "removed",
+    "subject": "БЖ",
+    "teacher": "Боброва О.В.",
+    "note": "снять"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИБ233",
+    "lesson_number": 5,
+    "type": "added",
+    "subject": "МДК.11.01.",
+    "teacher": "Родионов В.И.",
+    "note": "сам/р."
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИБ233",
+    "lesson_number": 6,
+    "type": "added",
+    "subject": "МДК.07.01.",
+    "teacher": "Родионов В.И.",
+    "note": "вм.2 п.сам/р."
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИВ234",
+    "lesson_number": 2,
+    "type": "added",
+    "subject": "Псих.общения",
+    "teacher": "Ткаченко А.В.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИВ234",
+    "lesson_number": 3,
+    "type": "added",
+    "subject": "Псих.общения",
+    "teacher": "Ткаченко А.В.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИВ234",
+    "lesson_number": 4,
+    "type": "added",
+    "subject": "Физ.культура",
+    "teacher": "Волков В.В.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС232",
+    "lesson_number": 1,
+    "type": "removed",
+    "subject": "Ин.язык(1и2)",
+    "teacher": "Сорокина Н.Б.",
+    "note": "Замена"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС232",
+    "lesson_number": 1,
+    "type": "added",
+    "subject": "МДК.05.01.",
+    "teacher": "Кожина Е.Н.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС233",
+    "lesson_number": 3,
+    "type": "added",
+    "subject": "МДК.05.01.",
+    "teacher": "Солодовник Н.Н.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС233",
+    "lesson_number": 4,
+    "type": "added",
+    "subject": "МДК.01.04.",
+    "teacher": "Михайленко Т.В.",
+    "note": "вм.3 п.сам/р."
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС235",
+    "lesson_number": 4,
+    "type": "removed",
+    "subject": "МДК.02.02.",
+    "teacher": "Чемеркина И.В.",
+    "note": "снять"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС222",
+    "lesson_number": 1,
+    "type": "removed",
+    "subject": "МДК.03.01.",
+    "teacher": "Гавриленко О.А.",
+    "note": ""
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС222",
+    "lesson_number": 3,
+    "type": "removed",
+    "subject": "БЖ",
+    "teacher": "Боброва О.В.",
+    "note": "Замена"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС222",
+    "lesson_number": 3,
+    "type": "added",
+    "subject": "ПОПД",
+    "teacher": "Минина М.Х.",
+    "note": "Добавление"
+  },
+  {
+    "date": "2026-05-26",
+    "day_of_week": "вторник",
+    "group": "ИКС222",
+    "lesson_number": 4,
+    "type": "added",
+    "subject": "МДК.02.02.",
+    "teacher": "Чемеркина И.В.",
+    "note": "сам/р."
+  }
+]

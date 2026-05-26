@@ -1,0 +1,16 @@
+[Unit]
+Description=College Schedule Bot with Cloudflare Tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/root/college-schedule-bot/start.sh
+ExecStop=/bin/sh -c 'pkill -f "cloudflared tunnel" || true; pkill -f "/root/college-schedule-bot/./bot" || true'
+User=root
+Group=root
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

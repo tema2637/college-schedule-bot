@@ -1,0 +1,30 @@
+# Binaries
+bot
+college-schedule-bot
+college-schedule-bot-new
+college-schedule-bot.exe
+college-schedule-bot.exe~
+college-schedule-bot.exe*
+
+# Logs
+*.log
+bot_old*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# IDE
+.idea/
+.vscode/
+
+# Temp
+*.tmp
+
+# Data files (copied from user)
+расписание.xlsx
