@@ -558,11 +558,13 @@ func (h *Handler) handleCallback(u *schemes.MessageCallbackUpdate) {
 	case data == "settings_toggle_corr":
 		user, ok := h.storage.GetUser(userID)
 		if !ok {
+			log.Printf("[SETTINGS] пользователь %d не найден", userID)
 			return
 		}
 		newVal := !user.DailyUpdate
+		log.Printf("[SETTINGS] user=%d daily_update: %t → %t", userID, user.DailyUpdate, newVal)
 		if err := h.storage.SetDailyUpdate(userID, newVal); err != nil {
-			log.Printf("[SETTINGS] ошибка: %v", err)
+			log.Printf("[SETTINGS] ошибка сохранения: %v", err)
 			return
 		}
 		// Обновляем сообщение с настройками
@@ -1339,15 +1341,18 @@ func (h *Handler) handleListAdmins(chatID int64, userID int64) {
 func (h *Handler) buildChangesForGroup(userID int64, groupName string) string {
 	data, err := os.ReadFile("changes.json")
 	if err != nil {
+		log.Printf("[CHANGES] файл не найден user=%d: %v", userID, err)
 		return ""
 	}
 
 	var allChanges []ChangeEntry
 	if err := json.Unmarshal(data, &allChanges); err != nil {
+		log.Printf("[CHANGES] ошибка парсинга для user=%d: %v", userID, err)
 		return ""
 	}
 
 	if len(allChanges) == 0 {
+		log.Printf("[CHANGES] пустой файл для user=%d", userID)
 		return ""
 	}
 
@@ -1488,33 +1493,74 @@ func (h *Handler) downloadFile(url, outPath string) error {
 
 // reply — отправляет простое текстовое сообщение
 func (h *Handler) reply(chatID int64, text string) {
-	if _, err := h.sendMessage(chatID, text); err != nil {
-		log.Printf("[SEND ERROR] %v", err)
+	msg, err := h.sendMessage(chatID, text)
+	if err != nil {
+		log.Printf("[REPLY] ошибка chat=%d: %v", chatID, err)
+		return
+	}
+	if msg == nil || msg.Body.Mid == "" {
+		log.Printf("[REPLY] пустой ответ chat=%d", chatID)
 	}
 }
 
 // sendMessage — отправка текста
+// sendMessageSafe отправляет сообщение и логирует ошибки
+func (h *Handler) sendMessageSafe(chatID int64, text string) *schemes.Message {
+	m := maxbot.NewMessage().SetChat(chatID).SetText(text).SetFormat(schemes.Markdown)
+	msg, err := h.api.Messages.SendWithResult(context.Background(), m)
+	if err != nil {
+		log.Printf("[SEND] ошибка отправки chat=%d: %v", chatID, err)
+		return nil
+	}
+	if msg == nil || msg.Body.Mid == "" {
+		log.Printf("[SEND] пустой ответ на отправку chat=%d", chatID)
+		return nil
+	}
+	return msg
+}
+
 func (h *Handler) sendMessage(chatID int64, text string) (*schemes.Message, error) {
 	m := maxbot.NewMessage().SetChat(chatID).SetText(text).SetFormat(schemes.Markdown)
-	return h.api.Messages.SendWithResult(context.Background(), m)
+	msg, err := h.api.Messages.SendWithResult(context.Background(), m)
+	if err != nil {
+		log.Printf("[SEND] ошибка: %v", err)
+	}
+	return msg, err
 }
 
 // sendToUser — отправка по user_id
 func (h *Handler) sendToUser(userID int64, text string) error {
 	m := maxbot.NewMessage().SetUser(userID).SetText(text).SetFormat(schemes.Markdown)
-	return h.api.Messages.Send(context.Background(), m)
+	err := h.api.Messages.Send(context.Background(), m)
+	if err != nil {
+		log.Printf("[SEND] ошибка отправки user=%d: %v", userID, err)
+	}
+	return err
 }
 
 // sendMessageWithInlineKeyboard — отправка с inline-клавиатурой
 func (h *Handler) sendMessageWithInlineKeyboard(chatID int64, text string, keyboard *maxbot.Keyboard) (*schemes.Message, error) {
 	m := maxbot.NewMessage().SetChat(chatID).SetText(text).SetFormat(schemes.Markdown).AddKeyboard(keyboard)
-	return h.api.Messages.SendWithResult(context.Background(), m)
+	msg, err := h.api.Messages.SendWithResult(context.Background(), m)
+	if err != nil {
+		log.Printf("[SEND] ошибка отправки (inline) chat=%d: %v", chatID, err)
+		return msg, err
+	}
+	if msg == nil || msg.Body.Mid == "" {
+		log.Printf("[SEND] пустой ответ (inline) chat=%d", chatID)
+		return nil, fmt.Errorf("пустой ответ")
+	}
+	return msg, nil
 }
 
 // editMessage — редактирование существующего сообщения
 func (h *Handler) editMessage(chatID int64, messageID string, text string, keyboard *maxbot.Keyboard) error {
 	m := maxbot.NewMessage().SetChat(chatID).SetText(text).SetFormat(schemes.Markdown).AddKeyboard(keyboard)
-	return h.api.Messages.EditMessage(context.Background(), messageID, m)
+	err := h.api.Messages.EditMessage(context.Background(), messageID, m)
+	if err != nil {
+		log.Printf("[EDIT] ошибка редактирования msg=%s: %v", messageID, err)
+	}
+	return err
 }
 
 func extractUserID(update schemes.UpdateInterface) int64 {
