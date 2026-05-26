@@ -1,7 +1,10 @@
 # Binaries
-bot
+/bot
 college-schedule-bot
 college-schedule-bot-new
+college-schedule-bot.exe
+*.exe
+Linux/bot
 
 # Logs
 *.log
