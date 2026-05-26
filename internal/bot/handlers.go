@@ -36,6 +36,7 @@ type Handler struct {
 	lastGroupPage  map[int64]int
 	lastActionTime map[int64]time.Time
 	lastWeekNav    map[int64]int
+	lastCorrMsgID  map[int64]string
 }
 
 func NewHandler(
@@ -60,6 +61,7 @@ func NewHandler(
 		lastGroupPage:  make(map[int64]int),
 		lastActionTime: make(map[int64]time.Time),
 		lastWeekNav:    make(map[int64]int),
+		lastCorrMsgID:  make(map[int64]string),
 	}
 }
 
@@ -159,6 +161,8 @@ func (h *Handler) handleMessage(u *schemes.MessageCreatedUpdate) {
 		h.handleUpdateAll(chatID, userID)
 	case "/change_group", "/сменить":
 		h.handleChangeGroup(chatID, userID)
+	case "/настройки", "/settings":
+		h.handleSettings(chatID, userID)
 	case "/корректировка", "/changes":
 		h.handleUserChanges(chatID, userID)
 	case "/myid", "/мойид":
@@ -379,6 +383,23 @@ func (h *Handler) showScheduleForDay(chatID int64, userID int64, dayOfWeek int, 
 			}
 		}
 	}
+
+	// Если включена авто-корректировка, отправляем изменения
+	if user, exists := h.storage.GetUser(userID); exists && user.DailyUpdate {
+		// Удаляем предыдущее сообщение с корректировками
+		if oldCorrID, ok := h.lastCorrMsgID[userID]; ok {
+			h.api.Messages.DeleteMessage(context.Background(), oldCorrID)
+			delete(h.lastCorrMsgID, userID)
+		}
+		// Отправляем свежие корректировки
+		corrText := h.buildChangesForGroup(userID, user.GroupName)
+		if corrText != "" {
+			msg, err := h.sendMessage(chatID, corrText)
+			if err == nil && msg != nil {
+				h.lastCorrMsgID[userID] = msg.Body.Mid
+			}
+		}
+	}
 }
 
 // handleCallback обрабатывает inline-кнопки
@@ -437,6 +458,30 @@ func (h *Handler) handleCallback(u *schemes.MessageCallbackUpdate) {
 		h.showScheduleForWeek(chatID, userID, h.engine.GetCurrentWeek()+1, false)
 	case data == "week_current":
 		h.showScheduleForWeek(chatID, userID, h.engine.GetCurrentWeek(), false)
+
+	// Настройки
+	case data == "settings_change_group":
+		groups := ExtractGroupsFromSchedule(h.storage.GetSchedule())
+		text, _ := h.renderer.Render("select_group", nil)
+		msg, _ := h.sendMessageWithInlineKeyboard(chatID, text, BuildGroupKeyboard(groups, 0))
+		h.lastMsgID[userID] = msg.Body.Mid
+	case data == "settings_toggle_corr":
+		user, ok := h.storage.GetUser(userID)
+		if !ok {
+			return
+		}
+		newVal := !user.DailyUpdate
+		if err := h.storage.SetDailyUpdate(userID, newVal); err != nil {
+			log.Printf("[SETTINGS] ошибка: %v", err)
+			return
+		}
+		// Обновляем сообщение с настройками
+		text := "⚙️ *Настройки*\n\nВыберите действие:"
+		msg, _ := h.sendMessageWithInlineKeyboard(chatID, text, BuildSettingsKeyboard(newVal))
+		if oldID, ok := h.lastMsgID[userID]; ok {
+			h.api.Messages.DeleteMessage(context.Background(), oldID)
+		}
+		h.lastMsgID[userID] = msg.Body.Mid
 	}
 
 	_, err := h.api.Messages.AnswerOnCallback(context.Background(), u.Callback.CallbackID, &schemes.CallbackAnswer{
@@ -609,6 +654,20 @@ func (h *Handler) handleCurrentWeek(chatID int64) {
 		"WeekNum": weekNum,
 	})
 	h.reply(chatID, text)
+}
+
+func (h *Handler) handleSettings(chatID int64, userID int64) {
+	user, ok := h.storage.GetUser(userID)
+	if !ok {
+		h.handleStart(chatID, userID)
+		return
+	}
+	text := "⚙️ *Настройки*\n\nВыберите действие:"
+	msg, _ := h.sendMessageWithInlineKeyboard(chatID, text, BuildSettingsKeyboard(user.DailyUpdate))
+	if oldID, ok := h.lastMsgID[userID]; ok {
+		h.api.Messages.DeleteMessage(context.Background(), oldID)
+	}
+	h.lastMsgID[userID] = msg.Body.Mid
 }
 
 func (h *Handler) handleChangeGroup(chatID int64, userID int64) {
@@ -1170,32 +1229,23 @@ func (h *Handler) handleListAdmins(chatID int64, userID int64) {
 
 // ======== /корректировка — изменения для своей группы ========
 
-func (h *Handler) handleUserChanges(chatID int64, userID int64) {
-	user, exists := h.storage.GetUser(userID)
-	if !exists {
-		h.handleStart(chatID, userID)
-		return
-	}
-
+// buildChangesForGroup возвращает текст изменений для группы (пусто если нет)
+func (h *Handler) buildChangesForGroup(userID int64, groupName string) string {
 	data, err := os.ReadFile("changes.json")
 	if err != nil {
-		h.reply(chatID, "⚠️ Файл изменений не найден")
-		return
+		return ""
 	}
 
 	var allChanges []ChangeEntry
 	if err := json.Unmarshal(data, &allChanges); err != nil {
-		h.reply(chatID, "⚠️ Ошибка чтения изменений")
-		return
+		return ""
 	}
 
 	if len(allChanges) == 0 {
-		h.reply(chatID, "📭 Изменений пока нет")
-		return
+		return ""
 	}
 
-	// Фильтруем только свою группу
-	userGroup := normalizeGroupName(user.GroupName)
+	userGroup := normalizeGroupName(groupName)
 	var myChanges []ChangeEntry
 	for _, ch := range allChanges {
 		if normalizeGroupName(ch.Group) == userGroup {
@@ -1204,11 +1254,9 @@ func (h *Handler) handleUserChanges(chatID int64, userID int64) {
 	}
 
 	if len(myChanges) == 0 {
-		h.reply(chatID, "📭 Для твоей группы изменений нет")
-		return
+		return ""
 	}
 
-	// Группируем по датам
 	type dayInfo struct {
 		date    string
 		dayName string
@@ -1225,7 +1273,7 @@ func (h *Handler) handleUserChanges(chatID int64, userID int64) {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("📋 *Изменения для %s*\n\n", user.GroupName))
+	sb.WriteString(fmt.Sprintf("📋 *Изменения для %s*\n\n", groupName))
 
 	for _, date := range dayKeys {
 		di := dayMap[date]
@@ -1247,7 +1295,7 @@ func (h *Handler) handleUserChanges(chatID int64, userID int64) {
 		if di.dayName != "" {
 			head += " (" + capitalize(di.dayName) + ")"
 		}
-		sb.WriteString(fmt.Sprintf("━━━ %s ━━━\n", head))
+		sb.WriteString(fmt.Sprintf("%s\n", head))
 
 		for _, ch := range changes {
 			ln := ""
@@ -1281,7 +1329,23 @@ func (h *Handler) handleUserChanges(chatID int64, userID int64) {
 		sb.WriteString("\n")
 	}
 
-	h.reply(chatID, sb.String())
+	return sb.String()
+}
+
+func (h *Handler) handleUserChanges(chatID int64, userID int64) {
+	user, exists := h.storage.GetUser(userID)
+	if !exists {
+		h.handleStart(chatID, userID)
+		return
+	}
+
+	text := h.buildChangesForGroup(userID, user.GroupName)
+	if text == "" {
+		h.reply(chatID, "📭 Для твоей группы изменений нет")
+		return
+	}
+
+	h.reply(chatID, text)
 }
 
 // parseInt парсит строку в int64

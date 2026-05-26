@@ -21,6 +21,9 @@ type User struct {
 	
 	// RegistrationDate - дата регистрации в формате RFC3339
 	RegistrationDate string `json:"registration_date"`
+	
+	// DailyUpdate — автоматический показ корректировок при расписании
+	DailyUpdate bool `json:"daily_update"`
 }
 
 // ScheduleLesson представляет один урок в расписании
@@ -346,6 +349,20 @@ func (m *Manager) GetUser(userID int64) (User, bool) {
 	
 	user, exists := m.users[userID]
 	return user, exists
+}
+
+// SetDailyUpdate устанавливает флаг автоматической рассылки корректировок
+func (m *Manager) SetDailyUpdate(userID int64, enabled bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
+	user, exists := m.users[userID]
+	if !exists {
+		return fmt.Errorf("пользователь не найден")
+	}
+	user.DailyUpdate = enabled
+	m.users[userID] = user
+	return m.saveUsers()
 }
 
 // SetUser сохраняет данные пользователя

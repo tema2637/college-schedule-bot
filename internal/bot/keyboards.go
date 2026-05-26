@@ -83,6 +83,23 @@ func BuildWeekNavigationKeyboard(currentWeek int, realCurrentWeek int) *maxbot.K
 	return &kb
 }
 
+// BuildSettingsKeyboard — настройки пользователя
+func BuildSettingsKeyboard(dailyUpdate bool) *maxbot.Keyboard {
+	kb := maxbot.Keyboard{}
+
+	row1 := kb.AddRow()
+	row1.AddCallback("📅 Сменить группу", schemes.DEFAULT, "settings_change_group")
+
+	row2 := kb.AddRow()
+	label := "📋 Корректировки: 🟢 вкл"
+	if !dailyUpdate {
+		label = "📋 Корректировки: 🔴 выкл"
+	}
+	row2.AddCallback(label, schemes.DEFAULT, "settings_toggle_corr")
+
+	return &kb
+}
+
 // ExtractGroupsFromSchedule извлекает уникальные группы и сортирует их
 func ExtractGroupsFromSchedule(schedule []storage.ScheduleLesson) []string {
 	groupMap := make(map[string]bool)
