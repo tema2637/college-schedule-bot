@@ -91,28 +91,19 @@ func (h *Handler) handleUpdate(update schemes.UpdateInterface) {
 		}
 	}()
 
-	// Анти-спам защита
+	// Анти-спам — игнорируем слишком частые действия
 	userID := extractUserID(update)
 	if userID != 0 {
 		if lastTime, ok := h.lastActionTime[userID]; ok {
 			if time.Since(lastTime) < 500*time.Millisecond {
-				// Удаляем спам-сообщение если это текст
-				if u, ok := update.(*schemes.MessageCreatedUpdate); ok {
-					h.api.Messages.DeleteMessage(context.Background(), u.Message.Body.Mid)
-				}
 				return
 			}
 		}
 		h.lastActionTime[userID] = time.Now()
 	}
 
-	// Искусственная задержка
-	time.Sleep(300 * time.Millisecond)
-
 	switch u := update.(type) {
 	case *schemes.MessageCreatedUpdate:
-		// Удаляем сообщение пользователя
-		h.api.Messages.DeleteMessage(context.Background(), u.Message.Body.Mid)
 		h.handleMessage(u)
 	case *schemes.MessageCallbackUpdate:
 		h.handleCallback(u)
