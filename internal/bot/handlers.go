@@ -82,11 +82,31 @@ func getStack() string {
 // crashLog логирует критическую ошибку и завершает процесс для перезапуска
 func crashLog(format string, args ...interface{}) {
 	msg := fmt.Sprintf("💥 КРИТИЧЕСКАЯ ОШИБКА: "+format, args...)
+	stack := getStack()
+
+	// Пишем в stdout
 	log.Println("═══════════════════════════════════════════")
 	log.Println(msg)
-	log.Println(getStack())
+	log.Println(stack)
 	log.Println("═══════════════════════════════════════════")
 	log.Println("🔄 Бот будет перезапущен через 5 секунд...")
+
+	// Пишем в файл panic.log в рабочей директории
+	now := time.Now().In(msk).Format("2006-01-02 15:04:05")
+	report := fmt.Sprintf("═══════════════════════════════════════════\n"+
+		"⏰ Время: %s\n%s\n%s\n"+
+		"═══════════════════════════════════════════\n",
+		now, msg, stack)
+
+	f, err := os.OpenFile("panic.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err == nil {
+		f.WriteString(report)
+		f.Close()
+		log.Printf("[PANIC] лог сохранён в panic.log")
+	} else {
+		log.Printf("[PANIC] не удалось записать panic.log: %v", err)
+	}
+
 	time.Sleep(5 * time.Second)
 	os.Exit(1)
 }
